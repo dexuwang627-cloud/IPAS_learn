@@ -28,13 +28,15 @@ SYSTEM_PROMPT = """你是一位 iPAS 產業人才能力鑑定的出題專家。
     "option_c": "選項C",
     "option_d": "選項D",
     "answer": "A",
-    "difficulty": 1
+    "difficulty": 1,
+    "explanation": "說明正確答案的理由，並簡述干擾選項為何錯誤"
   },
   {
     "type": "truefalse",
     "content": "題目內容",
     "answer": "T",
-    "difficulty": 2
+    "difficulty": 2,
+    "explanation": "說明該敘述為何正確或錯誤，引用教材中的具體內容"
   }
 ]
 ```
@@ -48,6 +50,9 @@ SYSTEM_PROMPT = """你是一位 iPAS 產業人才能力鑑定的出題專家。
 6. 困難題：計算、整合分析、情境判斷
 7. 題目必須基於給定教材內容，不可憑空捏造
 8. 每題必須有明確唯一正確答案
+9. explanation 必須基於教材內容，1-3 句話
+10. 選擇題的 explanation 須說明正確選項理由，並提及至少一個干擾選項為何錯
+11. 是非題的 explanation 須說明該敘述為何正確或錯誤
 """
 
 
@@ -90,6 +95,9 @@ def _parse_response(raw: str) -> list[dict]:
             continue
         if q.get("difficulty") not in (1, 2, 3):
             q["difficulty"] = 2  # 預設中等
+        # explanation is optional — don't discard question if missing
+        if "explanation" not in q or not q.get("explanation"):
+            q["explanation"] = None
         if q["type"] == "choice":
             if q["answer"] not in ("A", "B", "C", "D"):
                 continue
