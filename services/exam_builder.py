@@ -4,7 +4,8 @@ from datetime import date
 import os
 
 
-def build_exam_pdf(questions: list[dict], include_answers: bool = False) -> bytes:
+def build_exam_pdf(questions: list[dict], include_answers: bool = False,
+                   include_explanations: bool = False) -> bytes:
     choice_qs = [q for q in questions if q["type"] == "choice"]
     tf_qs = [q for q in questions if q["type"] == "truefalse"]
     chapters = list({q["chapter"] for q in questions})
@@ -19,7 +20,8 @@ def build_exam_pdf(questions: list[dict], include_answers: bool = False) -> byte
         chapters="、".join(chapters),
         total=len(questions),
         date=date.today().strftime("%Y-%m-%d"),
-        include_answers=include_answers
+        include_answers=include_answers,
+        include_explanations=include_explanations
     )
 
     return HTML(string=html_content).write_pdf()

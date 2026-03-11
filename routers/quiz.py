@@ -100,6 +100,7 @@ async def quiz_pdf(
     num_choice: int = Query(10, ge=0, le=50),
     num_tf: int = Query(5, ge=0, le=30),
     include_answers: bool = Query(False),
+    include_explanations: bool = Query(False),
 ):
     """產生 PDF 試卷"""
     choice_qs = get_questions(chapter=chapter, difficulty=difficulty,
@@ -111,7 +112,8 @@ async def quiz_pdf(
     if not questions:
         return {"error": "題庫中沒有符合條件的題目"}
 
-    pdf_bytes = build_exam_pdf(questions, include_answers=include_answers)
+    pdf_bytes = build_exam_pdf(questions, include_answers=include_answers,
+                               include_explanations=include_explanations)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

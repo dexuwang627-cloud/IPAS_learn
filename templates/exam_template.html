@@ -16,6 +16,8 @@
   .options { margin-left: 20px; margin-top: 6px; }
   .option { margin: 2px 0; }
   .answer { color: #c00; font-weight: bold; margin-top: 4px; }
+  .explanation { color: #555; font-size: 10pt; margin-top: 4px; margin-left: 20px;
+                 padding: 4px 8px; background: #f5f5f5; border-left: 3px solid #ccc; }
   .page-break { page-break-before: always; }
 </style>
 </head>
@@ -34,6 +36,7 @@
       {% if q.option_d %}<div class="option">(D) {{ q.option_d }}</div>{% endif %}
     </div>
     {% if include_answers %}<div class="answer">答案：{{ q.answer }}</div>{% endif %}
+    {% if include_explanations and q.explanation %}<div class="explanation">{{ q.explanation }}</div>{% endif %}
   </div>
   {% endfor %}
 
@@ -42,6 +45,7 @@
   <div class="question">
     <div class="question-text">{{ loop.index }}. {{ q.content }}</div>
     {% if include_answers %}<div class="answer">答案：{% if q.answer == 'T' %}○{% else %}✗{% endif %}</div>{% endif %}
+    {% if include_explanations and q.explanation %}<div class="explanation">{{ q.explanation }}</div>{% endif %}
   </div>
   {% endfor %}
 </body>
