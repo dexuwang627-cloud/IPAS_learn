@@ -1,0 +1,80 @@
+"""
+Embedding Service
+ChromaDB + Ollama nomic-embed-text for semantic vector operations.
+Used for question deduplication now; RAG retrieval later.
+"""
+import ollama
+import chromadb
+
+EMBED_MODEL = "nomic-embed-text"
+DEFAULT_CHROMA_DIR = "data/chroma"
+COLLECTION_NAME = "questions"
+
+_client_cache: dict[str, chromadb.ClientAPI] = {}
+
+
+def _get_client(persist_dir: str = DEFAULT_CHROMA_DIR) -> chromadb.ClientAPI:
+    if persist_dir not in _client_cache:
+        _client_cache[persist_dir] = chromadb.PersistentClient(path=persist_dir)
+    return _client_cache[persist_dir]
+
+
+def _embed(text: str) -> list[float]:
+    response = ollama.embed(model=EMBED_MODEL, input=text)
+    return response["embeddings"][0]
+
+
+def init_chroma(persist_dir: str = DEFAULT_CHROMA_DIR):
+    client = _get_client(persist_dir)
+    collection = client.get_or_create_collection(
+        name=COLLECTION_NAME,
+        metadata={"hnsw:space": "cosine"},
+    )
+    return collection
+
+
+def add_question(question_id: int, content: str,
+                 chroma_dir: str = DEFAULT_CHROMA_DIR):
+    collection = init_chroma(chroma_dir)
+    embedding = _embed(content)
+    collection.upsert(
+        ids=[str(question_id)],
+        embeddings=[embedding],
+        documents=[content],
+    )
+
+
+def find_similar(content: str, threshold: float = 0.85,
+                 n_results: int = 5,
+                 chroma_dir: str = DEFAULT_CHROMA_DIR) -> list[dict]:
+    collection = init_chroma(chroma_dir)
+    if collection.count() == 0:
+        return []
+
+    embedding = _embed(content)
+    results = collection.query(
+        query_embeddings=[embedding],
+        n_results=min(n_results, collection.count()),
+        include=["documents", "distances"],
+    )
+
+    matches = []
+    for i, doc_id in enumerate(results["ids"][0]):
+        # ChromaDB cosine distance: 0 = identical, 2 = opposite
+        # Convert to similarity: 1 - (distance / 2)
+        distance = results["distances"][0][i]
+        similarity = 1 - (distance / 2)
+        if similarity >= threshold:
+            matches.append({
+                "id": int(doc_id),
+                "content": results["documents"][0][i],
+                "similarity": round(similarity, 4),
+            })
+
+    return sorted(matches, key=lambda x: x["similarity"], reverse=True)
+
+
+def remove_question(question_id: int,
+                    chroma_dir: str = DEFAULT_CHROMA_DIR):
+    collection = init_chroma(chroma_dir)
+    collection.delete(ids=[str(question_id)])
