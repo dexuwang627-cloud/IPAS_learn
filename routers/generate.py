@@ -4,8 +4,8 @@
 from fastapi import APIRouter, BackgroundTasks
 from pydantic import BaseModel, Field
 from typing import Optional
-from services.question_generator import generate_from_text_files, generate_questions
-from database import insert_question, get_stats
+from services.question_generator import generate_from_text_files, generate_questions, insert_question_with_dedup
+from database import get_stats
 from pathlib import Path
 import json
 
@@ -29,15 +29,27 @@ def _run_generation(num_choice: int, num_tf: int):
             num_choice=num_choice, num_tf=num_tf
         )
         inserted = 0
+        skipped = 0
+        skipped_details = []
         for q in questions:
             try:
-                insert_question(q)
-                inserted += 1
+                result = insert_question_with_dedup(q)
+                if result["inserted"]:
+                    inserted += 1
+                else:
+                    skipped += 1
+                    skipped_details.append({
+                        "content": q["content"][:50],
+                        "similar_to_id": result["similar_to"]["id"],
+                        "similarity": result["similar_to"]["similarity"],
+                    })
             except Exception as e:
-                print(f"  ⚠️ 插入失敗: {e}")
+                print(f"  插入失敗: {e}")
         _generation_status["last_result"] = {
             "generated": len(questions),
             "inserted": inserted,
+            "skipped": skipped,
+            "skipped_details": skipped_details,
             "stats": get_stats(),
         }
     except Exception as e:
@@ -86,8 +98,14 @@ async def generate_single(req: SingleGenerateRequest):
         difficulty=req.difficulty,
     )
 
+    saved = 0
+    skipped = 0
     if req.auto_save:
         for q in questions:
-            insert_question(q)
+            result = insert_question_with_dedup(q)
+            if result["inserted"]:
+                saved += 1
+            else:
+                skipped += 1
 
-    return {"generated": len(questions), "questions": questions}
+    return {"generated": len(questions), "saved": saved, "skipped": skipped, "questions": questions}
