@@ -8,6 +8,9 @@ import ollama
 from pathlib import Path
 from typing import Optional
 
+from database import insert_question as _db_insert
+from services.embedding_service import add_question as _embed_add, find_similar as _embed_find
+
 MODEL = "gemma3:4b"
 
 SYSTEM_PROMPT = """你是一位 iPAS 產業人才能力鑑定的出題專家。
@@ -177,3 +180,28 @@ def generate_from_text_files(
         print(f"     ✅ 產生 {len(questions)} 題")
 
     return all_questions
+
+
+def insert_question_with_dedup(
+    q: dict,
+    threshold: float = 0.85,
+    db_path: str = "data/questions.db",
+    chroma_dir: str = "data/chroma",
+) -> dict:
+    """Insert question with semantic dedup check.
+    Returns dict with inserted (bool), question_id, and similar_to if skipped."""
+    similar = _embed_find(q["content"], threshold=threshold, chroma_dir=chroma_dir)
+    if similar:
+        return {
+            "inserted": False,
+            "question_id": None,
+            "similar_to": similar[0],
+        }
+
+    qid = _db_insert(q, db_path=db_path)
+    _embed_add(qid, q["content"], chroma_dir=chroma_dir)
+    return {
+        "inserted": True,
+        "question_id": qid,
+        "similar_to": None,
+    }
