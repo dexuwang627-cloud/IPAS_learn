@@ -81,6 +81,7 @@ async def check_answers(sheet: AnswerSheet):
             "user_answer": user_answer,
             "correct_answer": q["answer"],
             "is_correct": is_correct,
+            "explanation": q.get("explanation"),
         })
 
     total = len(results)
