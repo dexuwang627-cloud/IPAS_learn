@@ -20,25 +20,28 @@ def init_db(db_path: str = DEFAULT_DB):
             option_d    TEXT,
             answer      TEXT NOT NULL,
             difficulty  INTEGER NOT NULL CHECK(difficulty IN (1, 2, 3)),
+            explanation TEXT,
             created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
     conn.commit()
     conn.close()
 
-def insert_question(q: dict, db_path: str = DEFAULT_DB):
+def insert_question(q: dict, db_path: str = DEFAULT_DB) -> int:
     conn = sqlite3.connect(db_path)
-    conn.execute("""
+    cur = conn.execute("""
         INSERT INTO questions
-        (chapter, source_file, type, content, option_a, option_b, option_c, option_d, answer, difficulty)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (chapter, source_file, type, content, option_a, option_b, option_c, option_d, answer, difficulty, explanation)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         q["chapter"], q["source_file"], q["type"], q["content"],
         q.get("option_a"), q.get("option_b"), q.get("option_c"), q.get("option_d"),
-        q["answer"], q["difficulty"]
+        q["answer"], q["difficulty"], q.get("explanation")
     ))
+    row_id = cur.lastrowid
     conn.commit()
     conn.close()
+    return row_id
 
 def get_questions(
     chapter: Optional[str] = None,
@@ -88,3 +91,12 @@ def get_stats(db_path: str = DEFAULT_DB) -> dict:
     ).fetchall()
     conn.close()
     return {"total": total, "by_chapter": dict(by_chapter)}
+
+def migrate_add_explanation(db_path: str = DEFAULT_DB):
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("ALTER TABLE questions ADD COLUMN explanation TEXT")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    conn.close()
