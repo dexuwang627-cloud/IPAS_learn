@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iPAS 題庫測驗系統</title>
+<style>
+  :root {
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --success: #16a34a;
+    --danger: #dc2626;
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #1e293b;
+    --text-muted: #64748b;
+    --radius: 12px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "PingFang TC", "Heiti TC", "Microsoft JhengHei", system-ui, sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh;
+  }
+  .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+
+  /* Header */
+  header {
+    text-align: center; padding: 32px 0 16px;
+  }
+  header h1 { font-size: 28px; margin-bottom: 4px; }
+  header p { color: var(--text-muted); font-size: 14px; }
+
+  /* Cards */
+  .card {
+    background: var(--card); border-radius: var(--radius);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08); padding: 24px;
+    margin-bottom: 16px; border: 1px solid var(--border);
+  }
+  .card h2 { font-size: 18px; margin-bottom: 16px; }
+
+  /* Stats bar */
+  .stats {
+    display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px;
+  }
+  .stat-item {
+    background: var(--bg); border-radius: 8px; padding: 12px 20px;
+    flex: 1; min-width: 120px; text-align: center;
+  }
+  .stat-item .num { font-size: 24px; font-weight: 700; color: var(--primary); }
+  .stat-item .label { font-size: 12px; color: var(--text-muted); }
+
+  /* Form elements */
+  label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px; }
+  select, input[type="number"] {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+    border-radius: 8px; font-size: 14px; background: var(--bg);
+    appearance: none;
+  }
+  select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M6 8L1 3h10z' fill='%2364748b'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 12px center; }
+  .form-row { display: flex; gap: 12px; margin-bottom: 16px; }
+  .form-row > div { flex: 1; }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 12px 24px; border: none; border-radius: 8px;
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+  .btn-success { background: var(--success); color: #fff; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-outline {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .btn-outline:hover { background: var(--bg); }
+  .btn-sm { padding: 8px 16px; font-size: 13px; }
+  .btn-block { width: 100%; }
+
+  /* Quiz */
+  .question-card {
+    background: var(--card); border-radius: var(--radius);
+    border: 1px solid var(--border); padding: 20px;
+    margin-bottom: 12px; transition: border-color 0.2s;
+  }
+  .question-card.correct { border-color: var(--success); background: #f0fdf4; }
+  .question-card.wrong { border-color: var(--danger); background: #fef2f2; }
+  .q-header {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+  }
+  .q-num {
+    background: var(--primary); color: #fff; width: 28px; height: 28px;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; flex-shrink: 0;
+  }
+  .q-badges { display: flex; gap: 6px; margin-left: auto; }
+  .badge {
+    font-size: 11px; padding: 2px 8px; border-radius: 10px;
+    font-weight: 500;
+  }
+  .badge-choice { background: #dbeafe; color: #1d4ed8; }
+  .badge-tf { background: #fef3c7; color: #92400e; }
+  .badge-d1 { background: #dcfce7; color: #166534; }
+  .badge-d2 { background: #fef9c3; color: #854d0e; }
+  .badge-d3 { background: #fee2e2; color: #991b1b; }
+  .q-text { font-size: 15px; line-height: 1.6; margin-bottom: 14px; }
+
+  .options { display: flex; flex-direction: column; gap: 8px; }
+  .option-btn {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; border: 1px solid var(--border);
+    border-radius: 8px; background: var(--bg); cursor: pointer;
+    font-size: 14px; transition: all 0.15s; text-align: left;
+  }
+  .option-btn:hover { border-color: var(--primary); background: #eff6ff; }
+  .option-btn.selected { border-color: var(--primary); background: #dbeafe; font-weight: 500; }
+  .option-btn.correct-answer { border-color: var(--success); background: #dcfce7; }
+  .option-btn.wrong-answer { border-color: var(--danger); background: #fee2e2; }
+  .option-label {
+    width: 24px; height: 24px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; background: #e2e8f0; flex-shrink: 0;
+  }
+
+  .tf-options { display: flex; gap: 12px; }
+  .tf-btn {
+    flex: 1; padding: 12px; border: 1px solid var(--border);
+    border-radius: 8px; background: var(--bg); cursor: pointer;
+    font-size: 15px; font-weight: 600; text-align: center;
+    transition: all 0.15s;
+  }
+  .tf-btn:hover { border-color: var(--primary); }
+  .tf-btn.selected { border-color: var(--primary); background: #dbeafe; }
+  .tf-btn.correct-answer { border-color: var(--success); background: #dcfce7; }
+  .tf-btn.wrong-answer { border-color: var(--danger); background: #fee2e2; }
+
+  .result-tag {
+    display: inline-block; margin-top: 8px; padding: 4px 12px;
+    border-radius: 6px; font-size: 13px; font-weight: 600;
+  }
+  .result-correct { background: #dcfce7; color: #166534; }
+  .result-wrong { background: #fee2e2; color: #991b1b; }
+
+  /* Score */
+  .score-card { text-align: center; padding: 40px; }
+  .score-big { font-size: 64px; font-weight: 800; color: var(--primary); }
+  .score-label { font-size: 16px; color: var(--text-muted); margin-top: 4px; }
+  .score-bar {
+    height: 8px; background: #e2e8f0; border-radius: 4px;
+    margin: 20px auto; max-width: 400px; overflow: hidden;
+  }
+  .score-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+
+  /* Generate */
+  .gen-status { padding: 16px; border-radius: 8px; margin-top: 12px; font-size: 14px; }
+  .gen-running { background: #fef9c3; color: #854d0e; }
+  .gen-done { background: #dcfce7; color: #166534; }
+  .gen-error { background: #fee2e2; color: #991b1b; }
+
+  /* Tabs */
+  .tabs { display: flex; border-bottom: 2px solid var(--border); margin-bottom: 20px; }
+  .tab {
+    padding: 10px 20px; cursor: pointer; font-weight: 500; font-size: 14px;
+    border-bottom: 2px solid transparent; margin-bottom: -2px;
+    color: var(--text-muted); transition: all 0.15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+  .hidden { display: none !important; }
+  .text-center { text-align: center; }
+  .mt-16 { margin-top: 16px; }
+  .mb-8 { margin-bottom: 8px; }
+
+  /* Loading */
+  .spinner {
+    display: inline-block; width: 20px; height: 20px;
+    border: 3px solid #e2e8f0; border-top-color: var(--primary);
+    border-radius: 50%; animation: spin 0.6s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>📝 iPAS 題庫測驗系統</h1>
+    <p>產業人才能力鑑定 — 碳管理 模擬測驗</p>
+  </header>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" data-tab="quiz">🎯 隨機測驗</div>
+    <div class="tab" data-tab="bank">📚 題庫瀏覽</div>
+    <div class="tab" data-tab="generate">🤖 自動出題</div>
+  </div>
+
+  <!-- ====== 測驗頁 ====== -->
+  <div id="tab-quiz">
+    <!-- 設定區 -->
+    <div id="quiz-setup" class="card">
+      <h2>測驗設定</h2>
+      <div id="stats-bar" class="stats"></div>
+      <div class="form-row">
+        <div>
+          <label>章節</label>
+          <select id="sel-chapter"><option value="">全部章節</option></select>
+        </div>
+        <div>
+          <label>難度</label>
+          <select id="sel-difficulty">
+            <option value="">不限</option>
+            <option value="1">⭐ 簡單</option>
+            <option value="2">⭐⭐ 中等</option>
+            <option value="3">⭐⭐⭐ 困難</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div>
+          <label>選擇題數量</label>
+          <input type="number" id="num-choice" value="10" min="0" max="50">
+        </div>
+        <div>
+          <label>是非題數量</label>
+          <input type="number" id="num-tf" value="5" min="0" max="30">
+        </div>
+      </div>
+      <button class="btn btn-primary btn-block" id="btn-start" onclick="startQuiz()">
+        開始測驗
+      </button>
+    </div>
+
+    <!-- 作答區 -->
+    <div id="quiz-area" class="hidden">
+      <div id="questions-list"></div>
+      <div class="text-center mt-16" style="display:flex; gap:12px; justify-content:center;">
+        <button class="btn btn-success" onclick="submitQuiz()">📨 交卷批改</button>
+        <button class="btn btn-outline" onclick="resetQuiz()">↩ 重新開始</button>
+      </div>
+    </div>
+
+    <!-- 成績區 -->
+    <div id="quiz-result" class="hidden"></div>
+  </div>
+
+  <!-- ====== 題庫頁 ====== -->
+  <div id="tab-bank" class="hidden">
+    <div class="card">
+      <h2>題庫瀏覽</h2>
+      <div class="form-row">
+        <div>
+          <label>章節</label>
+          <select id="bank-chapter"><option value="">全部</option></select>
+        </div>
+        <div>
+          <label>難度</label>
+          <select id="bank-diff">
+            <option value="">全部</option>
+            <option value="1">簡單</option>
+            <option value="2">中等</option>
+            <option value="3">困難</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:flex-end;">
+          <button class="btn btn-primary btn-sm" onclick="loadBank()">查詢</button>
+        </div>
+      </div>
+    </div>
+    <div id="bank-list"></div>
+  </div>
+
+  <!-- ====== 出題頁 ====== -->
+  <div id="tab-generate" class="hidden">
+    <div class="card">
+      <h2>🤖 自動出題</h2>
+      <p style="color:var(--text-muted);font-size:14px;margin-bottom:16px;">
+        使用本地 Ollama AI 從教材文本自動產生題目並存入題庫
+      </p>
+      <div class="form-row">
+        <div>
+          <label>每份教材選擇題數</label>
+          <input type="number" id="gen-choice" value="3" min="1" max="10">
+        </div>
+        <div>
+          <label>每份教材是非題數</label>
+          <input type="number" id="gen-tf" value="2" min="1" max="5">
+        </div>
+      </div>
+      <button class="btn btn-primary btn-block" id="btn-gen" onclick="triggerGenerate()">
+        🚀 開始產題
+      </button>
+      <div id="gen-status" class="hidden"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let currentQuiz = null;
+let answerKey = {};
+let userAnswers = {};
+
+// ---- Tabs ----
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('[id^="tab-"]').forEach(p => p.classList.add('hidden'));
+    document.getElementById('tab-' + tab.dataset.tab).classList.remove('hidden');
+
+    if (tab.dataset.tab === 'bank') loadBank();
+    if (tab.dataset.tab === 'generate') checkGenStatus();
+  });
+});
+
+// ---- Init ----
+async function init() {
+  const [statsRes, chapRes] = await Promise.all([
+    fetch(API + '/api/stats').then(r => r.json()),
+    fetch(API + '/api/chapters').then(r => r.json()),
+  ]);
+
+  // Stats
+  const bar = document.getElementById('stats-bar');
+  bar.innerHTML = `
+    <div class="stat-item"><div class="num">${statsRes.total}</div><div class="label">題庫總題數</div></div>
+    <div class="stat-item"><div class="num">${Object.keys(statsRes.by_chapter).length}</div><div class="label">章節數</div></div>
+  `;
+
+  // Chapters dropdown
+  const chapters = chapRes.chapters || [];
+  ['sel-chapter', 'bank-chapter'].forEach(id => {
+    const sel = document.getElementById(id);
+    chapters.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c; opt.textContent = c;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+// ---- Quiz ----
+async function startQuiz() {
+  const btn = document.getElementById('btn-start');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 出題中...';
+
+  try {
+    const body = {
+      chapter: document.getElementById('sel-chapter').value || null,
+      difficulty: Number(document.getElementById('sel-difficulty').value) || null,
+      num_choice: Number(document.getElementById('num-choice').value),
+      num_tf: Number(document.getElementById('num-tf').value),
+    };
+    const res = await fetch(API + '/api/quiz', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    currentQuiz = await res.json();
+    answerKey = currentQuiz._answer_key || {};
+    userAnswers = {};
+
+    if (currentQuiz.total === 0) {
+      alert('題庫中沒有符合條件的題目，請先產生題目！');
+      return;
+    }
+
+    renderQuiz(currentQuiz.questions);
+    document.getElementById('quiz-setup').classList.add('hidden');
+    document.getElementById('quiz-area').classList.remove('hidden');
+    document.getElementById('quiz-result').classList.add('hidden');
+  } finally {
+    btn.disabled = false; btn.textContent = '開始測驗';
+  }
+}
+
+function renderQuiz(questions) {
+  const list = document.getElementById('questions-list');
+  list.innerHTML = questions.map((q, i) => {
+    const num = i + 1;
+    const typeBadge = q.type === 'choice'
+      ? '<span class="badge badge-choice">選擇題</span>'
+      : '<span class="badge badge-tf">是非題</span>';
+    const diffBadge = `<span class="badge badge-d${q.difficulty}">
+      ${'⭐'.repeat(q.difficulty)}</span>`;
+
+    let optionsHtml = '';
+    if (q.type === 'choice') {
+      optionsHtml = `<div class="options">
+        ${['A','B','C','D'].map(k => {
+          const val = q['option_' + k.toLowerCase()];
+          if (!val) return '';
+          return `<div class="option-btn" data-qid="${q.id}" data-val="${k}"
+                       onclick="selectAnswer(${q.id},'${k}',this)">
+            <span class="option-label">${k}</span>
+            <span>${val}</span>
+          </div>`;
+        }).join('')}
+      </div>`;
+    } else {
+      optionsHtml = `<div class="tf-options">
+        <div class="tf-btn" data-qid="${q.id}" data-val="T"
+             onclick="selectAnswer(${q.id},'T',this)">⭕ 正確</div>
+        <div class="tf-btn" data-qid="${q.id}" data-val="F"
+             onclick="selectAnswer(${q.id},'F',this)">❌ 錯誤</div>
+      </div>`;
+    }
+
+    return `<div class="question-card" id="qcard-${q.id}">
+      <div class="q-header">
+        <span class="q-num">${num}</span>
+        <div class="q-badges">${typeBadge}${diffBadge}</div>
+      </div>
+      <div class="q-text">${q.content}</div>
+      ${optionsHtml}
+    </div>`;
+  }).join('');
+}
+
+function selectAnswer(qid, val, el) {
+  // 如果已批改則不允許修改
+  if (document.getElementById('quiz-result').classList.contains('hidden') === false) return;
+
+  const card = document.getElementById('qcard-' + qid);
+  card.querySelectorAll('.option-btn, .tf-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  userAnswers[String(qid)] = val;
+}
+
+async function submitQuiz() {
+  if (Object.keys(userAnswers).length === 0) {
+    alert('請至少作答一題！');
+    return;
+  }
+
+  const res = await fetch(API + '/api/quiz/check', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({answers: userAnswers}),
+  });
+  const result = await res.json();
+
+  // 顯示成績
+  const pct = result.percentage;
+  const color = pct >= 60 ? 'var(--success)' : 'var(--danger)';
+  document.getElementById('quiz-result').innerHTML = `
+    <div class="card score-card">
+      <div class="score-big" style="color:${color}">${pct}%</div>
+      <div class="score-label">答對 ${result.score} / ${result.total} 題</div>
+      <div class="score-bar"><div class="score-fill" style="width:${pct}%;background:${color}"></div></div>
+      <button class="btn btn-primary mt-16" onclick="resetQuiz()">再測一次</button>
+    </div>`;
+  document.getElementById('quiz-result').classList.remove('hidden');
+
+  // 標記對錯
+  result.results.forEach(r => {
+    const card = document.getElementById('qcard-' + r.id);
+    if (!card) return;
+    card.classList.add(r.is_correct ? 'correct' : 'wrong');
+
+    // 標記正確答案
+    const correctEl = card.querySelector(`[data-val="${r.correct_answer}"]`);
+    if (correctEl) correctEl.classList.add('correct-answer');
+
+    if (!r.is_correct) {
+      const wrongEl = card.querySelector(`[data-val="${r.user_answer}"]`);
+      if (wrongEl) wrongEl.classList.add('wrong-answer');
+
+      const tag = document.createElement('div');
+      tag.innerHTML = `<span class="result-tag result-wrong">✗ 正確答案：${r.correct_answer}</span>`;
+      card.appendChild(tag);
+    } else {
+      const tag = document.createElement('div');
+      tag.innerHTML = `<span class="result-tag result-correct">✓ 正確</span>`;
+      card.appendChild(tag);
+    }
+  });
+}
+
+function resetQuiz() {
+  document.getElementById('quiz-setup').classList.remove('hidden');
+  document.getElementById('quiz-area').classList.add('hidden');
+  document.getElementById('quiz-result').classList.add('hidden');
+  currentQuiz = null; answerKey = {}; userAnswers = {};
+  init();
+}
+
+// ---- Bank ----
+async function loadBank() {
+  const ch = document.getElementById('bank-chapter').value;
+  const diff = document.getElementById('bank-diff').value;
+  const params = new URLSearchParams();
+  if (ch) params.set('chapter', ch);
+  if (diff) params.set('difficulty', diff);
+  params.set('limit', '100');
+
+  const res = await fetch(API + '/api/questions?' + params);
+  const data = await res.json();
+  const list = document.getElementById('bank-list');
+
+  if (!data.questions || data.questions.length === 0) {
+    list.innerHTML = '<div class="card text-center" style="color:var(--text-muted)">題庫中尚無題目</div>';
+    return;
+  }
+
+  list.innerHTML = data.questions.map(q => {
+    const typeBadge = q.type === 'choice'
+      ? '<span class="badge badge-choice">選擇題</span>'
+      : '<span class="badge badge-tf">是非題</span>';
+    const diffBadge = `<span class="badge badge-d${q.difficulty}">${'⭐'.repeat(q.difficulty)}</span>`;
+
+    let opts = '';
+    if (q.type === 'choice') {
+      opts = ['A','B','C','D'].map(k => {
+        const v = q['option_' + k.toLowerCase()];
+        return v ? `<div style="margin-left:12px;font-size:13px;">(${k}) ${v}</div>` : '';
+      }).join('');
+    }
+
+    return `<div class="card" style="padding:16px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        ${typeBadge}${diffBadge}
+        <span style="font-size:12px;color:var(--text-muted);margin-left:auto;">${q.chapter}</span>
+      </div>
+      <div style="font-size:14px;margin-bottom:6px;">${q.content}</div>
+      ${opts}
+      <div style="font-size:13px;color:var(--success);margin-top:6px;">答案：${q.answer}</div>
+    </div>`;
+  }).join('');
+}
+
+// ---- Generate ----
+async function triggerGenerate() {
+  const btn = document.getElementById('btn-gen');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 產題中...';
+
+  const body = {
+    num_choice: Number(document.getElementById('gen-choice').value),
+    num_tf: Number(document.getElementById('gen-tf').value),
+  };
+
+  try {
+    await fetch(API + '/api/generate', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    showGenStatus('running', '⏳ 正在產題中，請稍候...');
+    pollGenStatus();
+  } catch (e) {
+    showGenStatus('error', '❌ 啟動失敗: ' + e.message);
+    btn.disabled = false; btn.textContent = '🚀 開始產題';
+  }
+}
+
+function pollGenStatus() {
+  const interval = setInterval(async () => {
+    const res = await fetch(API + '/api/generate/status');
+    const data = await res.json();
+    if (!data.running) {
+      clearInterval(interval);
+      const btn = document.getElementById('btn-gen');
+      btn.disabled = false; btn.textContent = '🚀 開始產題';
+      if (data.result && data.result.error) {
+        showGenStatus('error', '❌ ' + data.result.error);
+      } else if (data.result) {
+        showGenStatus('done',
+          `✅ 完成！產生 ${data.result.generated} 題，成功存入 ${data.result.inserted} 題。題庫總計 ${data.result.stats.total} 題。`);
+        init();
+      }
+    }
+  }, 3000);
+}
+
+async function checkGenStatus() {
+  const res = await fetch(API + '/api/generate/status');
+  const data = await res.json();
+  if (data.running) {
+    showGenStatus('running', '⏳ 產題中...');
+    document.getElementById('btn-gen').disabled = true;
+    document.getElementById('btn-gen').innerHTML = '<span class="spinner"></span> 產題中...';
+    pollGenStatus();
+  } else if (data.result) {
+    if (data.result.error) {
+      showGenStatus('error', '❌ ' + data.result.error);
+    } else {
+      showGenStatus('done',
+        `✅ 上次結果：產生 ${data.result.generated} 題，存入 ${data.result.inserted} 題。`);
+    }
+  }
+}
+
+function showGenStatus(type, msg) {
+  const el = document.getElementById('gen-status');
+  el.classList.remove('hidden', 'gen-running', 'gen-done', 'gen-error');
+  el.classList.add('gen-status', 'gen-' + (type === 'running' ? 'running' : type === 'done' ? 'done' : 'error'));
+  el.textContent = msg;
+}
+
+// Boot
+init();
+</script>
+</body>
+</html>
