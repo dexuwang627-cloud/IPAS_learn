@@ -1,17 +1,22 @@
 """
 Question Generator Service
-使用 Ollama 本地 LLM 從文本自動產生 iPAS 考試題目
+使用 Gemini API 從文本自動產生 iPAS 考試題目
 """
 import json
+import os
 import re
-import ollama
 from pathlib import Path
 from typing import Optional
+
+from google import genai
+from google.genai import types
 
 from database import insert_question as _db_insert
 from services.embedding_service import add_question as _embed_add, find_similar as _embed_find
 
-MODEL = "gemma3:4b"
+_client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+MODEL = "gemini-2.5-flash"
 
 SYSTEM_PROMPT = """你是一位 iPAS 產業人才能力鑑定的出題專家。
 你的任務是根據給定的學習教材內容，產生高品質的考試題目。
@@ -73,9 +78,56 @@ def _build_prompt(text: str, num_choice: int = 3, num_tf: int = 2,
 請直接輸出 JSON 陣列，不要加其他說明文字。"""
 
 
+def _normalize_question(q: dict) -> Optional[dict]:
+    """將各種 LLM 回傳格式正規化為統一 schema"""
+    if not isinstance(q, dict):
+        return None
+
+    # 正規化 type
+    raw_type = str(q.get("type", "")).lower().replace("_", "").replace("-", "")
+    if raw_type in ("choice", "multiplechoice"):
+        q["type"] = "choice"
+    elif raw_type in ("truefalse", "trueorfalse", "tf"):
+        q["type"] = "truefalse"
+    else:
+        return None
+
+    # 正規化 content（有些模型用 "question" 而非 "content"）
+    if "content" not in q and "question" in q:
+        q["content"] = q.pop("question")
+    if not q.get("content"):
+        return None
+
+    # 正規化 answer
+    answer = q.get("answer")
+    if isinstance(answer, bool):
+        q["answer"] = "T" if answer else "F"
+    elif isinstance(answer, str):
+        q["answer"] = answer.strip().upper()
+    else:
+        return None
+
+    # 正規化 options（有些模型用 {"A": "...", "B": "..."} 物件）
+    if "options" in q and isinstance(q["options"], dict):
+        for key in ("A", "B", "C", "D"):
+            field = f"option_{key.lower()}"
+            if field not in q and key in q["options"]:
+                q[field] = q["options"][key]
+        del q["options"]
+
+    # 正規化 difficulty
+    if q.get("difficulty") not in (1, 2, 3):
+        q["difficulty"] = 2
+
+    # 正規化 explanation（有些模型用 "reference"）
+    if "explanation" not in q or not q.get("explanation"):
+        q["explanation"] = q.pop("reference", None)
+
+    return q
+
+
 def _parse_response(raw: str) -> list[dict]:
     """從 LLM 回應中解析 JSON 題目列表"""
-    # 嘗試提取 JSON 區塊
     json_match = re.search(r'\[.*\]', raw, re.DOTALL)
     if not json_match:
         return []
@@ -87,29 +139,22 @@ def _parse_response(raw: str) -> list[dict]:
 
     valid = []
     for q in questions:
-        if not isinstance(q, dict):
+        normalized = _normalize_question(q)
+        if normalized is None:
             continue
-        if q.get("type") not in ("choice", "truefalse"):
-            continue
-        if not q.get("content") or not q.get("answer"):
-            continue
-        if q.get("difficulty") not in (1, 2, 3):
-            q["difficulty"] = 2  # 預設中等
-        # explanation is optional — don't discard question if missing
-        if "explanation" not in q or not q.get("explanation"):
-            q["explanation"] = None
-        if q["type"] == "choice":
-            if q["answer"] not in ("A", "B", "C", "D"):
+
+        if normalized["type"] == "choice":
+            if normalized["answer"] not in ("A", "B", "C", "D"):
                 continue
-            if not all(q.get(f"option_{k}") for k in "abcd"):
+            if not all(normalized.get(f"option_{k}") for k in "abcd"):
                 continue
-        elif q["type"] == "truefalse":
-            if q["answer"] not in ("T", "F"):
+        elif normalized["type"] == "truefalse":
+            if normalized["answer"] not in ("T", "F"):
                 continue
-            # 清除不需要的選項欄位
             for k in ("option_a", "option_b", "option_c", "option_d"):
-                q.pop(k, None)
-        valid.append(q)
+                normalized.pop(k, None)
+
+        valid.append(normalized)
 
     return valid
 
@@ -126,16 +171,17 @@ def generate_questions(
     """從文本產生題目，回傳符合 database schema 的 dict 列表"""
     prompt = _build_prompt(text, num_choice, num_tf, difficulty)
 
-    response = ollama.chat(
+    response = _client.models.generate_content(
         model=model,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ],
-        options={"temperature": 0.7, "num_predict": 4096},
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+            temperature=0.7,
+            max_output_tokens=4096,
+        ),
     )
 
-    raw = response["message"]["content"]
+    raw = response.text
     questions = _parse_response(raw)
 
     # 補充 chapter 與 source_file

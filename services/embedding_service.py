@@ -1,27 +1,31 @@
 """
 Embedding Service
-ChromaDB + Ollama nomic-embed-text for semantic vector operations.
+ChromaDB + Gemini text-embedding-004 for semantic vector operations.
 Used for question deduplication now; RAG retrieval later.
 """
-import ollama
+import os
+
+from google import genai
 import chromadb
 
-EMBED_MODEL = "nomic-embed-text"
+_client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+EMBED_MODEL = "gemini-embedding-001"
 DEFAULT_CHROMA_DIR = "data/chroma"
 COLLECTION_NAME = "questions"
 
-_client_cache: dict[str, chromadb.ClientAPI] = {}
+_chroma_cache: dict[str, chromadb.ClientAPI] = {}
 
 
 def _get_client(persist_dir: str = DEFAULT_CHROMA_DIR) -> chromadb.ClientAPI:
-    if persist_dir not in _client_cache:
-        _client_cache[persist_dir] = chromadb.PersistentClient(path=persist_dir)
-    return _client_cache[persist_dir]
+    if persist_dir not in _chroma_cache:
+        _chroma_cache[persist_dir] = chromadb.PersistentClient(path=persist_dir)
+    return _chroma_cache[persist_dir]
 
 
 def _embed(text: str) -> list[float]:
-    response = ollama.embed(model=EMBED_MODEL, input=text)
-    return response["embeddings"][0]
+    result = _client.models.embed_content(model=EMBED_MODEL, contents=text)
+    return result.embeddings[0].values
 
 
 def init_chroma(persist_dir: str = DEFAULT_CHROMA_DIR):
