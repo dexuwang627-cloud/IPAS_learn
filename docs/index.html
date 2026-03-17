@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iPAS 碳管理測驗</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --surface-2: #1a1a1a;
+    --border: #262626;
+    --text: #e5e5e5;
+    --text-dim: #737373;
+    --text-muted: #525252;
+    --accent: #22c55e;
+    --accent-dim: #166534;
+    --accent-glow: rgba(34,197,94,0.15);
+    --warn: #f59e0b;
+    --danger: #ef4444;
+    --info: #3b82f6;
+    --radius: 8px;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Noto Sans TC', system-ui, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; -webkit-font-smoothing: antialiased;
+  }
+  #noise-canvas {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 0; pointer-events: none; opacity: 0.6;
+  }
+  .app { position: relative; z-index: 1; max-width: 840px; margin: 0 auto; padding: 24px 20px 80px; }
+  header { padding: 40px 0 24px; text-align: center; }
+  header h1 { font-family: var(--mono); font-size: 26px; font-weight: 700; color: var(--accent); letter-spacing: -0.5px; }
+  header h1 span { color: var(--text-dim); font-weight: 400; }
+  header p { font-size: 13px; color: var(--text-muted); margin-top: 6px; font-family: var(--mono); letter-spacing: 1px; text-transform: uppercase; }
+
+  .tabs { display: flex; gap: 2px; margin-bottom: 24px; background: var(--surface); border-radius: var(--radius); padding: 3px; border: 1px solid var(--border); }
+  .tab { flex: 1; padding: 10px 0; text-align: center; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-dim); border-radius: 6px; transition: all 0.2s; font-family: var(--mono); }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: var(--accent-dim); color: var(--accent); box-shadow: 0 0 12px var(--accent-glow); }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 16px; }
+  .card h2 { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--accent); margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border); letter-spacing: 0.5px; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 20px; }
+  .stat-item { background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 14px; text-align: center; }
+  .stat-item .num { font-family: var(--mono); font-size: 28px; font-weight: 700; color: var(--accent); }
+  .stat-item .label { font-size: 11px; color: var(--text-muted); margin-top: 2px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  label { display: block; font-size: 12px; font-weight: 500; color: var(--text-dim); margin-bottom: 6px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.5px; }
+  select, input[type="number"] { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; background: var(--bg); color: var(--text); font-family: var(--sans); appearance: none; outline: none; transition: border-color 0.2s; }
+  select:focus, input:focus { border-color: var(--accent); }
+  select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M6 8L1 3h10z' fill='%23737373'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; }
+  .form-row { display: flex; gap: 12px; margin-bottom: 16px; }
+  .form-row > div { flex: 1; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 11px 20px; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: var(--mono); transition: all 0.2s; letter-spacing: 0.3px; }
+  .btn-primary { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); }
+  .btn-primary:hover { background: var(--accent); color: var(--bg); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-dim); }
+  .btn-outline:hover { border-color: var(--text-dim); color: var(--text); }
+  .btn-block { width: 100%; }
+  .btn-sm { padding: 7px 14px; font-size: 12px; }
+
+  .badge { font-family: var(--mono); font-size: 10px; padding: 3px 8px; border-radius: 4px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; display: inline-block; }
+  .badge-choice { background: #1e3a5f; color: #60a5fa; }
+  .badge-tf { background: #422006; color: #fbbf24; }
+  .badge-mc { background: #14532d; color: #4ade80; }
+  .badge-scenario { background: #3b0764; color: #c084fc; }
+  .badge-d1 { background: #052e16; color: #4ade80; }
+  .badge-d2 { background: #422006; color: #fbbf24; }
+  .badge-d3 { background: #450a0a; color: #f87171; }
+
+  .question-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 12px; transition: border-color 0.3s, background 0.3s; }
+  .question-card.correct { border-color: var(--accent); background: rgba(34,197,94,0.05); }
+  .question-card.wrong { border-color: var(--danger); background: rgba(239,68,68,0.05); }
+  .q-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .q-num { font-family: var(--mono); background: var(--accent-dim); color: var(--accent); width: 28px; height: 28px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+  .q-badges { display: flex; gap: 6px; margin-left: auto; }
+  .q-text { font-size: 15px; line-height: 1.7; margin-bottom: 14px; }
+  .q-hint { font-family: var(--mono); font-size: 11px; color: var(--warn); margin-bottom: 10px; }
+
+  .scenario-block { background: var(--surface-2); border: 1px solid var(--border); border-left: 3px solid #a855f7; border-radius: var(--radius); padding: 16px 20px; margin-bottom: 16px; }
+  .scenario-label { font-family: var(--mono); font-size: 11px; color: #c084fc; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .scenario-text { font-size: 14px; line-height: 1.7; color: var(--text-dim); }
+
+  .options { display: flex; flex-direction: column; gap: 6px; }
+  .option-btn { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); cursor: pointer; font-size: 14px; transition: all 0.15s; text-align: left; color: var(--text); }
+  .option-btn:hover { border-color: var(--accent-dim); background: var(--surface-2); }
+  .option-btn.selected { border-color: var(--accent); background: var(--accent-dim); }
+  .option-btn.correct-answer { border-color: var(--accent); background: rgba(34,197,94,0.12); }
+  .option-btn.wrong-answer { border-color: var(--danger); background: rgba(239,68,68,0.12); }
+  .option-label { font-family: var(--mono); width: 24px; height: 24px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; background: var(--surface-2); color: var(--text-dim); flex-shrink: 0; border: 1px solid var(--border); }
+  .option-btn.selected .option-label { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .option-check { width: 16px; height: 16px; border: 2px solid var(--border); border-radius: 3px; flex-shrink: 0; transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
+  .option-btn.selected .option-check { background: var(--accent); border-color: var(--accent); }
+  .option-btn.selected .option-check::after { content: ''; display: block; width: 6px; height: 10px; border: solid var(--bg); border-width: 0 2px 2px 0; transform: rotate(45deg) translate(-1px, -1px); }
+
+  .tf-options { display: flex; gap: 10px; }
+  .tf-btn { flex: 1; padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); cursor: pointer; font-size: 14px; font-weight: 600; text-align: center; color: var(--text-dim); transition: all 0.15s; font-family: var(--mono); }
+  .tf-btn:hover { border-color: var(--accent-dim); }
+  .tf-btn.selected { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
+  .tf-btn.correct-answer { border-color: var(--accent); background: rgba(34,197,94,0.12); color: var(--accent); }
+  .tf-btn.wrong-answer { border-color: var(--danger); background: rgba(239,68,68,0.12); color: var(--danger); }
+
+  .result-tag { display: inline-block; margin-top: 10px; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; font-family: var(--mono); }
+  .result-correct { background: rgba(34,197,94,0.15); color: var(--accent); }
+  .result-wrong { background: rgba(239,68,68,0.15); color: #f87171; }
+  .explanation { margin-top: 10px; padding: 12px 16px; background: var(--surface-2); border-radius: 6px; font-size: 13px; color: var(--text-dim); line-height: 1.6; border-left: 3px solid var(--text-muted); }
+  .partial-info { font-family: var(--mono); font-size: 11px; color: var(--warn); margin-top: 6px; }
+
+  .score-card { text-align: center; padding: 40px 24px; }
+  .score-big { font-family: var(--mono); font-size: 72px; font-weight: 700; }
+  .score-label { font-size: 14px; color: var(--text-dim); margin-top: 4px; font-family: var(--mono); }
+  .score-bar { height: 6px; background: var(--surface-2); border-radius: 3px; margin: 24px auto; max-width: 400px; overflow: hidden; }
+  .score-fill { height: 100%; border-radius: 3px; transition: width 0.8s ease; }
+
+  .weakness-item { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .weakness-item:last-child { border-bottom: none; }
+  .weakness-bar-wrap { flex: 1; height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+  .weakness-bar { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+  .weakness-label { font-size: 13px; min-width: 180px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .weakness-pct { font-family: var(--mono); font-size: 13px; min-width: 50px; text-align: right; font-weight: 600; }
+  .weakness-count { font-family: var(--mono); font-size: 11px; color: var(--text-muted); min-width: 60px; text-align: right; }
+  .weakness-empty { text-align: center; padding: 40px 20px; color: var(--text-muted); font-size: 14px; }
+
+  .hidden { display: none !important; }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .loading-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 80px 20px; color: var(--text-dim); }
+  .loading-screen .spinner { width: 32px; height: 32px; border-width: 3px; margin-bottom: 16px; }
+
+  @media (max-width: 600px) {
+    .app { padding: 12px 12px 60px; }
+    header { padding: 24px 0 16px; }
+    header h1 { font-size: 20px; }
+    header p { font-size: 11px; }
+    .tabs { gap: 1px; }
+    .tab { font-size: 11px; padding: 9px 4px; }
+    .form-row { flex-direction: column; gap: 10px; }
+    .stats { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .stat-item { padding: 10px 6px; }
+    .stat-item .num { font-size: 22px; }
+    .stat-item .label { font-size: 9px; }
+    .card { padding: 16px; }
+    .card h2 { font-size: 13px; }
+    .question-card { padding: 14px; }
+    .q-text { font-size: 14px; }
+    .option-btn { padding: 9px 10px; font-size: 13px; }
+    .tf-btn { padding: 10px; font-size: 13px; }
+    .score-big { font-size: 48px; }
+    .weakness-item { gap: 8px; flex-wrap: wrap; }
+    .weakness-label { min-width: 100%; font-size: 12px; }
+    .weakness-bar-wrap { min-width: 60%; }
+    .scenario-block { padding: 12px 14px; }
+    .scenario-text { font-size: 13px; }
+    .btn { padding: 10px 16px; font-size: 13px; }
+    .explanation { padding: 10px 12px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="noise-canvas"></canvas>
+<div class="app">
+  <header>
+    <h1>iPAS <span>//</span> CARBON</h1>
+    <p>碳管理能力鑑定 模擬測驗系統</p>
+  </header>
+
+  <div id="loading" class="loading-screen">
+    <div class="spinner"></div>
+    <div style="font-family:var(--mono);font-size:13px;">LOADING QUESTIONS...</div>
+  </div>
+
+  <div id="main-app" class="hidden">
+    <div class="tabs">
+      <div class="tab active" data-tab="quiz">測驗</div>
+      <div class="tab" data-tab="weakness">弱點分析</div>
+      <div class="tab" data-tab="bank">題庫</div>
+    </div>
+
+    <div id="tab-quiz">
+      <div id="quiz-setup" class="card">
+        <h2>// QUIZ CONFIG</h2>
+        <div id="stats-bar" class="stats"></div>
+        <div class="form-row">
+          <div><label>章節</label><select id="sel-chapter"><option value="">全部章節</option></select></div>
+          <div><label>難度</label><select id="sel-difficulty"><option value="">不限</option><option value="1">Lv.1 基礎</option><option value="2">Lv.2 中等</option><option value="3">Lv.3 進階</option></select></div>
+        </div>
+        <div class="form-row">
+          <div><label>單選題</label><input type="number" id="num-choice" value="10" min="0" max="50"></div>
+          <div><label>是非題</label><input type="number" id="num-tf" value="5" min="0" max="30"></div>
+        </div>
+        <div class="form-row">
+          <div><label>複選題</label><input type="number" id="num-mc" value="0" min="0" max="20"></div>
+          <div><label>情境題組</label><input type="number" id="num-scenario" value="0" min="0" max="10"></div>
+        </div>
+        <button class="btn btn-primary btn-block" id="btn-start">START QUIZ</button>
+      </div>
+      <div id="quiz-area" class="hidden">
+        <div id="questions-list"></div>
+        <div style="display:flex;gap:10px;justify-content:center;margin-top:20px;">
+          <button class="btn btn-primary" id="btn-submit">SUBMIT</button>
+          <button class="btn btn-outline" id="btn-reset">RESET</button>
+        </div>
+      </div>
+      <div id="quiz-result" class="hidden"></div>
+    </div>
+
+    <div id="tab-weakness" class="hidden">
+      <div class="card">
+        <h2>// WEAKNESS ANALYSIS</h2>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">根據作答紀錄分析各章節正確率</p>
+        <div id="weakness-content"></div>
+      </div>
+      <div class="card" id="weakness-detail-card">
+        <h2>// WRONG ANSWERS LOG</h2>
+        <div id="weakness-log"></div>
+      </div>
+    </div>
+
+    <div id="tab-bank" class="hidden">
+      <div class="card">
+        <h2>// QUESTION BANK</h2>
+        <div class="form-row">
+          <div><label>章節</label><select id="bank-chapter"><option value="">全部</option></select></div>
+          <div><label>難度</label><select id="bank-diff"><option value="">全部</option><option value="1">Lv.1</option><option value="2">Lv.2</option><option value="3">Lv.3</option></select></div>
+          <div><label>題型</label><select id="bank-type"><option value="">全部</option><option value="choice">單選</option><option value="truefalse">是非</option><option value="multichoice">複選</option><option value="scenario_choice">情境單選</option><option value="scenario_multichoice">情境複選</option></select></div>
+          <div style="display:flex;align-items:flex-end;"><button class="btn btn-primary btn-sm" id="btn-bank">QUERY</button></div>
+        </div>
+      </div>
+      <div id="bank-list"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========== Particle Background ==========
+(function(){
+  const c=document.getElementById('noise-canvas'),x=c.getContext('2d');let ps=[],w,h,d;
+  function resize(){d=window.devicePixelRatio||1;w=c.width=innerWidth*d;h=c.height=innerHeight*d;c.style.width=innerWidth+'px';c.style.height=innerHeight+'px';initP();}
+  function initP(){const n=Math.min(Math.floor(w*h/(d*d*8000)),200);ps=[];for(let i=0;i<n;i++)ps.push({x:Math.random()*w,y:Math.random()*h,vx:(Math.random()-.5)*.4*d,vy:(Math.random()-.5)*.4*d,s:(Math.random()*1.5+.5)*d,a:Math.random()*.5+.1});}
+  function draw(){x.clearRect(0,0,w,h);for(const p of ps){p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=w;if(p.x>w)p.x=0;if(p.y<0)p.y=h;if(p.y>h)p.y=0;x.beginPath();x.arc(p.x,p.y,p.s,0,Math.PI*2);x.fillStyle=`rgba(34,197,94,${p.a})`;x.fill();}const m=120*d;for(let i=0;i<ps.length;i++)for(let j=i+1;j<ps.length;j++){const dx=ps[i].x-ps[j].x,dy=ps[i].y-ps[j].y,dist=dx*dx+dy*dy;if(dist<m*m){x.beginPath();x.moveTo(ps[i].x,ps[i].y);x.lineTo(ps[j].x,ps[j].y);x.strokeStyle=`rgba(34,197,94,${(1-Math.sqrt(dist)/m)*.12})`;x.lineWidth=.5*d;x.stroke();}}requestAnimationFrame(draw);}
+  addEventListener('resize',resize);resize();draw();
+})();
+
+// ========== State ==========
+let ALL_Q = [];
+let userAnswers = {};
+let quizQuestions = [];
+let history = JSON.parse(localStorage.getItem('ipas_history') || '[]');
+
+const TYPE_LABELS = {choice:'單選',truefalse:'是非',multichoice:'複選',scenario_choice:'情境單選',scenario_multichoice:'情境複選'};
+const TYPE_BADGE = {choice:'badge-choice',truefalse:'badge-tf',multichoice:'badge-mc',scenario_choice:'badge-scenario',scenario_multichoice:'badge-scenario'};
+function isMulti(t){return t==='multichoice'||t==='scenario_multichoice';}
+function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+function shuffle(arr){for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;}
+
+// ========== Load Data ==========
+fetch('questions.json').then(r=>r.json()).then(data=>{
+  ALL_Q=data;
+  document.getElementById('loading').classList.add('hidden');
+  document.getElementById('main-app').classList.remove('hidden');
+  initApp();
+}).catch(e=>{
+  document.getElementById('loading').innerHTML=`<div style="color:var(--danger);font-family:var(--mono);">Failed to load: ${e.message}</div>`;
+});
+
+function initApp(){
+  // Stats
+  const groups={};const types={};
+  ALL_Q.forEach(q=>{
+    const g=q.chapter_group||'other';
+    groups[g]=(groups[g]||0)+1;
+    types[q.type]=(types[q.type]||0)+1;
+  });
+  document.getElementById('stats-bar').innerHTML=`
+    <div class="stat-item"><div class="num">${ALL_Q.length}</div><div class="label">Total</div></div>
+    <div class="stat-item"><div class="num">${Object.keys(groups).length}</div><div class="label">Groups</div></div>
+    <div class="stat-item"><div class="num">${types.choice||0}</div><div class="label">Choice</div></div>
+    <div class="stat-item"><div class="num">${(types.multichoice||0)+(types.scenario_choice||0)+(types.scenario_multichoice||0)}</div><div class="label">MC+Scen</div></div>
+    <div class="stat-item"><div class="num">${types.truefalse||0}</div><div class="label">T/F</div></div>
+  `;
+  // Chapters dropdown
+  const chapters = [...new Set(ALL_Q.map(q=>q.chapter_group).filter(Boolean))].sort();
+  ['sel-chapter','bank-chapter'].forEach(id=>{
+    const sel=document.getElementById(id);
+    chapters.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
+  });
+}
+
+// ========== Tabs ==========
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('[id^="tab-"]').forEach(p=>p.classList.add('hidden'));
+    document.getElementById('tab-'+tab.dataset.tab).classList.remove('hidden');
+    if(tab.dataset.tab==='weakness')renderWeakness();
+    if(tab.dataset.tab==='bank')loadBank();
+  });
+});
+
+// ========== Quiz ==========
+document.getElementById('btn-start').onclick=startQuiz;
+document.getElementById('btn-submit').onclick=submitQuiz;
+document.getElementById('btn-reset').onclick=resetQuiz;
+
+function startQuiz(){
+  const chapter=document.getElementById('sel-chapter').value;
+  const diff=Number(document.getElementById('sel-difficulty').value)||0;
+  const nChoice=Number(document.getElementById('num-choice').value);
+  const nTf=Number(document.getElementById('num-tf').value);
+  const nMc=Number(document.getElementById('num-mc').value);
+  const nScenario=Number(document.getElementById('num-scenario').value);
+
+  let pool=ALL_Q.filter(q=>{
+    if(chapter&&q.chapter_group!==chapter)return false;
+    if(diff&&q.difficulty!==diff)return false;
+    return true;
+  });
+
+  quizQuestions=[];
+  userAnswers={};
+
+  // Pick by type
+  const pick=(type,n)=>shuffle(pool.filter(q=>q.type===type)).slice(0,n);
+  quizQuestions.push(...pick('choice',nChoice));
+  quizQuestions.push(...pick('truefalse',nTf));
+  quizQuestions.push(...pick('multichoice',nMc));
+
+  // Scenario: group by scenario_id, take N groups
+  if(nScenario>0){
+    const scenarioPool=shuffle(pool.filter(q=>q.type==='scenario_choice'||q.type==='scenario_multichoice'));
+    const groups={};
+    scenarioPool.forEach(q=>{const sid=q.scenario_id||('s_'+q.id);(groups[sid]=groups[sid]||[]).push(q);});
+    let taken=0;
+    for(const[,group]of Object.entries(groups)){
+      if(taken>=nScenario)break;
+      quizQuestions.push(...group);
+      taken++;
+    }
+  }
+
+  if(quizQuestions.length===0){alert('沒有符合條件的題目');return;}
+
+  renderQuiz();
+  document.getElementById('quiz-setup').classList.add('hidden');
+  document.getElementById('quiz-area').classList.remove('hidden');
+  document.getElementById('quiz-result').classList.add('hidden');
+}
+
+function renderQuiz(){
+  const list=document.getElementById('questions-list');
+  let html='';let curScenario=null;let num=0;
+  for(const q of quizQuestions){
+    num++;
+    const tl=TYPE_LABELS[q.type]||q.type;
+    const tb=TYPE_BADGE[q.type]||'badge-choice';
+    if(q.scenario_id&&q.scenario_id!==curScenario){
+      curScenario=q.scenario_id;
+      html+=`<div class="scenario-block"><div class="scenario-label">Scenario // ${q.scenario_id}</div><div class="scenario-text">${esc(q.scenario_text)}</div></div>`;
+    }else if(!q.scenario_id)curScenario=null;
+    const hint=isMulti(q.type)?'<div class="q-hint">* MULTI-SELECT: 選擇所有正確選項</div>':'';
+    let opts='';
+    if(q.type==='truefalse'){
+      opts=`<div class="tf-options"><div class="tf-btn" data-qid="${q.id}" data-val="T" onclick="sel(${q.id},'T',this,'truefalse')">O 正確</div><div class="tf-btn" data-qid="${q.id}" data-val="F" onclick="sel(${q.id},'F',this,'truefalse')">X 錯誤</div></div>`;
+    }else{
+      const multi=isMulti(q.type);
+      opts='<div class="options">'+['A','B','C','D'].map(k=>{
+        const v=q['option_'+k.toLowerCase()];if(!v)return '';
+        const ind=multi?`<span class="option-check"></span><span class="option-label" style="margin-left:-4px;">${k}</span>`:`<span class="option-label">${k}</span>`;
+        return `<div class="option-btn" data-qid="${q.id}" data-val="${k}" onclick="sel(${q.id},'${k}',this,'${q.type}')">${ind}<span>${esc(v)}</span></div>`;
+      }).join('')+'</div>';
+    }
+    html+=`<div class="question-card" id="qc-${q.id}"><div class="q-header"><span class="q-num">${num}</span><div class="q-badges"><span class="badge ${tb}">${tl}</span><span class="badge badge-d${q.difficulty}">Lv.${q.difficulty}</span></div></div><div class="q-text">${esc(q.content)}</div>${hint}${opts}</div>`;
+  }
+  list.innerHTML=html;
+}
+
+window.sel=function(qid,val,el,type){
+  if(!document.getElementById('quiz-result').classList.contains('hidden'))return;
+  const card=document.getElementById('qc-'+qid);
+  if(isMulti(type)){
+    el.classList.toggle('selected');
+    userAnswers[qid]=Array.from(card.querySelectorAll('.option-btn.selected')).map(b=>b.dataset.val).sort().join('');
+  }else if(type==='truefalse'){
+    card.querySelectorAll('.tf-btn').forEach(b=>b.classList.remove('selected'));
+    el.classList.add('selected');userAnswers[qid]=val;
+  }else{
+    card.querySelectorAll('.option-btn').forEach(b=>b.classList.remove('selected'));
+    el.classList.add('selected');userAnswers[qid]=val;
+  }
+};
+
+function checkAnswer(userAns,correct,type){
+  const u=(userAns||'').toUpperCase().replace(/[^A-DTF]/g,'');
+  const c=correct.toUpperCase();
+  if(isMulti(type))return[...u].sort().join('')===[...c].sort().join('');
+  return u===c;
+}
+
+function submitQuiz(){
+  if(Object.keys(userAnswers).length===0){alert('請至少作答一題');return;}
+  let score=0;const results=[];
+  for(const q of quizQuestions){
+    const ua=userAnswers[q.id]||'';
+    const correct=checkAnswer(ua,q.answer,q.type);
+    if(correct)score++;
+    results.push({...q,user_answer:ua,is_correct:correct});
+  }
+  const total=quizQuestions.length;
+  const pct=Math.round(score/total*100);
+  const color=pct>=60?'var(--accent)':'var(--danger)';
+
+  // Save history
+  const now=new Date().toISOString();
+  results.forEach(r=>{
+    history.push({id:r.id,type:r.type,content:(r.content||'').substring(0,100),chapter:r.chapter_group||'',is_correct:r.is_correct,user_answer:r.user_answer,correct_answer:r.answer,timestamp:now});
+  });
+  if(history.length>500)history=history.slice(-500);
+  localStorage.setItem('ipas_history',JSON.stringify(history));
+
+  document.getElementById('quiz-result').innerHTML=`<div class="card score-card"><div class="score-big" style="color:${color}">${pct}%</div><div class="score-label">${score} / ${total} correct</div><div class="score-bar"><div class="score-fill" style="width:${pct}%;background:${color}"></div></div><div style="margin-top:20px;display:flex;gap:10px;justify-content:center;"><button class="btn btn-primary" onclick="resetQuiz()">RETRY</button><button class="btn btn-outline" onclick="document.querySelector('[data-tab=weakness]').click()">VIEW WEAKNESS</button></div></div>`;
+  document.getElementById('quiz-result').classList.remove('hidden');
+
+  // Mark cards
+  results.forEach(r=>{
+    const card=document.getElementById('qc-'+r.id);if(!card)return;
+    card.classList.add(r.is_correct?'correct':'wrong');
+    if(isMulti(r.type)){
+      const cl=r.answer.split('');const ul=new Set((r.user_answer||'').split(''));
+      cl.forEach(l=>{const e=card.querySelector(`[data-val="${l}"]`);if(e)e.classList.add('correct-answer');});
+      ul.forEach(l=>{if(!cl.includes(l)){const e=card.querySelector(`[data-val="${l}"]`);if(e)e.classList.add('wrong-answer');}});
+    }else{
+      const ce=card.querySelector(`[data-val="${r.answer}"]`);if(ce)ce.classList.add('correct-answer');
+      if(!r.is_correct){const we=card.querySelector(`[data-val="${r.user_answer}"]`);if(we)we.classList.add('wrong-answer');}
+    }
+    const tag=document.createElement('div');
+    tag.innerHTML=r.is_correct?'<span class="result-tag result-correct">CORRECT</span>':`<span class="result-tag result-wrong">WRONG // ans: ${r.answer}</span>`;
+    card.appendChild(tag);
+    if(!r.is_correct&&isMulti(r.type)){
+      const us=new Set((r.user_answer||'').split(''));const cs=new Set(r.answer.split(''));
+      const partial=[...us].filter(x=>cs.has(x)).length;
+      const pi=document.createElement('div');pi.className='partial-info';pi.textContent=`${partial}/${cs.size} correct selections`;card.appendChild(pi);
+    }
+    if(r.explanation){const e=document.createElement('div');e.className='explanation';e.textContent=r.explanation;card.appendChild(e);}
+  });
+}
+
+function resetQuiz(){
+  document.getElementById('quiz-setup').classList.remove('hidden');
+  document.getElementById('quiz-area').classList.add('hidden');
+  document.getElementById('quiz-result').classList.add('hidden');
+  quizQuestions=[];userAnswers={};
+}
+
+// ========== Weakness ==========
+function renderWeakness(){
+  const c=document.getElementById('weakness-content');
+  const log=document.getElementById('weakness-log');
+  const dc=document.getElementById('weakness-detail-card');
+  if(!history.length){c.innerHTML='<div class="weakness-empty">尚無作答紀錄。完成測驗後會自動記錄。</div>';dc.classList.add('hidden');return;}
+  dc.classList.remove('hidden');
+  const chs={};
+  history.forEach(h=>{const ch=h.chapter||'unknown';if(!chs[ch])chs[ch]={total:0,correct:0,wrong:[]};chs[ch].total++;if(h.is_correct)chs[ch].correct++;else chs[ch].wrong.push(h);});
+  const sorted=Object.entries(chs).map(([ch,d])=>({chapter:ch,total:d.total,correct:d.correct,pct:Math.round(d.correct/d.total*100),wrong:d.wrong})).sort((a,b)=>a.pct-b.pct);
+  const totalQ=history.length,totalC=history.filter(h=>h.is_correct).length,oPct=Math.round(totalC/totalQ*100);
+  c.innerHTML=`<div style="display:flex;gap:12px;margin-bottom:20px;"><div class="stat-item" style="flex:1"><div class="num">${totalQ}</div><div class="label">Total</div></div><div class="stat-item" style="flex:1"><div class="num" style="color:${oPct>=60?'var(--accent)':'var(--danger)'}">${oPct}%</div><div class="label">Overall</div></div><div class="stat-item" style="flex:1"><div class="num" style="color:var(--danger)">${totalQ-totalC}</div><div class="label">Wrong</div></div></div>`+
+    sorted.map(i=>{const bc=i.pct>=80?'var(--accent)':i.pct>=50?'var(--warn)':'var(--danger)';return `<div class="weakness-item"><div class="weakness-label" title="${esc(i.chapter)}">${esc(i.chapter)}</div><div class="weakness-bar-wrap"><div class="weakness-bar" style="width:${i.pct}%;background:${bc}"></div></div><div class="weakness-pct" style="color:${bc}">${i.pct}%</div><div class="weakness-count">${i.correct}/${i.total}</div></div>`;}).join('');
+  const allW=sorted.flatMap(s=>s.wrong).slice(-20).reverse();
+  log.innerHTML=allW.length?allW.map(w=>`<div style="padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;"><div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;"><span class="badge ${TYPE_BADGE[w.type]||'badge-choice'}">${TYPE_LABELS[w.type]||w.type}</span><span style="color:var(--text-muted);font-family:var(--mono);font-size:11px;">#${w.id}</span><span style="color:var(--text-muted);font-size:11px;margin-left:auto;">${(w.timestamp||'').slice(0,10)}</span></div><div style="color:var(--text-dim);line-height:1.5;">${esc(w.content)}...</div><div style="font-family:var(--mono);font-size:11px;margin-top:4px;"><span style="color:var(--danger)">yours: ${w.user_answer}</span><span style="color:var(--accent);margin-left:12px;">correct: ${w.correct_answer}</span></div></div>`).join(''):'<div class="weakness-empty">No wrong answers.</div>';
+}
+
+// ========== Bank ==========
+document.getElementById('btn-bank').onclick=loadBank;
+function loadBank(){
+  const ch=document.getElementById('bank-chapter').value;
+  const diff=Number(document.getElementById('bank-diff').value)||0;
+  const type=document.getElementById('bank-type').value;
+  let filtered=ALL_Q.filter(q=>{
+    if(ch&&q.chapter_group!==ch)return false;
+    if(diff&&q.difficulty!==diff)return false;
+    if(type&&q.type!==type)return false;
+    return true;
+  }).slice(0,100);
+  const list=document.getElementById('bank-list');
+  if(!filtered.length){list.innerHTML='<div class="card" style="text-align:center;color:var(--text-muted)">No questions found</div>';return;}
+  list.innerHTML=filtered.map(q=>{
+    const tb=`<span class="badge ${TYPE_BADGE[q.type]||'badge-choice'}">${TYPE_LABELS[q.type]||q.type}</span>`;
+    const db=`<span class="badge badge-d${q.difficulty}">Lv.${q.difficulty}</span>`;
+    let opts='';
+    if(q.type!=='truefalse')opts=['A','B','C','D'].map(k=>{const v=q['option_'+k.toLowerCase()];return v?`<div style="margin-left:12px;font-size:12px;color:var(--text-dim);padding:2px 0;"><span style="font-family:var(--mono);color:var(--text-muted);">${k}.</span> ${esc(v)}</div>`:'';}).join('');
+    const sc=q.scenario_text?`<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;padding:8px;background:var(--surface-2);border-radius:4px;border-left:2px solid #a855f7;">${esc(q.scenario_text).substring(0,150)}...</div>`:'';
+    return `<div class="card" style="padding:16px;"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">${tb}${db}<span style="font-size:11px;color:var(--text-muted);margin-left:auto;font-family:var(--mono);">${esc(q.chapter_group||'')}</span></div>${sc}<div style="font-size:14px;margin-bottom:6px;line-height:1.6;">${esc(q.content)}</div>${opts}<div style="font-family:var(--mono);font-size:12px;color:var(--accent);margin-top:8px;">ans: ${q.answer}</div>${q.explanation?`<div class="explanation" style="margin-top:6px;">${esc(q.explanation)}</div>`:''}</div>`;
+  }).join('');
+}
+</script>
+</body>
+</html>

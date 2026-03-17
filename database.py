@@ -58,7 +58,7 @@ def get_questions(
     sql = "SELECT * FROM questions WHERE 1=1"
     params = []
     if chapter:
-        sql += " AND chapter = ?"
+        sql += " AND chapter_group = ?"
         params.append(chapter)
     if difficulty:
         sql += " AND difficulty = ?"
@@ -80,7 +80,9 @@ def get_questions(
 
 def get_chapters(db_path: str = DEFAULT_DB) -> list[str]:
     conn = sqlite3.connect(db_path)
-    rows = conn.execute("SELECT DISTINCT chapter FROM questions ORDER BY chapter").fetchall()
+    rows = conn.execute(
+        "SELECT DISTINCT chapter_group FROM questions WHERE chapter_group IS NOT NULL ORDER BY chapter_group"
+    ).fetchall()
     conn.close()
     return [r[0] for r in rows]
 
@@ -94,10 +96,13 @@ def get_stats(db_path: str = DEFAULT_DB) -> dict:
     conn = sqlite3.connect(db_path)
     total = conn.execute("SELECT COUNT(*) FROM questions").fetchone()[0]
     by_chapter = conn.execute(
-        "SELECT chapter, COUNT(*) FROM questions GROUP BY chapter"
+        "SELECT chapter_group, COUNT(*) FROM questions WHERE chapter_group IS NOT NULL GROUP BY chapter_group"
+    ).fetchall()
+    by_type = conn.execute(
+        "SELECT type, COUNT(*) FROM questions GROUP BY type"
     ).fetchall()
     conn.close()
-    return {"total": total, "by_chapter": dict(by_chapter)}
+    return {"total": total, "by_chapter": dict(by_chapter), "by_type": dict(by_type)}
 
 def migrate_add_explanation(db_path: str = DEFAULT_DB):
     conn = sqlite3.connect(db_path)
