@@ -34,9 +34,9 @@
   }
   #noise-canvas {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    z-index: 0; pointer-events: none; opacity: 0.6;
+    z-index: -1; pointer-events: none !important; opacity: 0.6;
   }
-  .app { position: relative; z-index: 1; max-width: 840px; margin: 0 auto; padding: 24px 20px 80px; }
+  .app { position: relative; z-index: 10; max-width: 840px; margin: 0 auto; padding: 24px 20px 80px; }
   header { padding: 40px 0 24px; text-align: center; }
   header h1 { font-family: var(--mono); font-size: 26px; font-weight: 700; color: var(--accent); letter-spacing: -0.5px; }
   header h1 span { color: var(--text-dim); font-weight: 400; }
@@ -204,13 +204,13 @@
       <div id="auth-success" class="auth-success"></div>
       <input type="email" id="auth-email" class="auth-input" placeholder="Email" autocomplete="email" aria-label="Email">
       <input type="password" id="auth-password" class="auth-input" placeholder="Password (min 6 chars)" autocomplete="current-password" aria-label="Password">
-      <button class="btn btn-primary btn-block" id="btn-auth">LOGIN</button>
+      <button class="btn btn-primary btn-block" id="btn-auth" type="button">LOGIN</button>
       <div style="display:flex;align-items:center;gap:12px;margin:16px 0 12px;">
         <div style="flex:1;height:1px;background:var(--border);"></div>
         <span style="font-family:var(--mono);font-size:11px;color:var(--text-muted);">OR</span>
         <div style="flex:1;height:1px;background:var(--border);"></div>
       </div>
-      <button class="btn btn-outline btn-block" id="btn-google" onclick="googleLogin()" style="gap:8px;">
+      <button class="btn btn-outline btn-block" id="btn-google" type="button" style="gap:8px;">
         <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
         使用 Google 登入
       </button>
@@ -306,17 +306,20 @@
 // ========== Supabase ==========
 const SUPABASE_URL = 'https://wozpmgdccqyqsiupuutn.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndvenBtZ2RjY3F5cXNpdXB1dXRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3MTI5OTYsImV4cCI6MjA4OTI4ODk5Nn0.rX7uuwlmBwSzOJG7YFlVwAFL58sS7zbFjH7wQJ5JfDA';
-let supabase = null;
+let sb = null;
 let currentUser = null;
 
 try {
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  const lib = window.supabase;
+  if (lib && lib.createClient) {
+    sb = lib.createClient(SUPABASE_URL, SUPABASE_KEY);
+  }
 } catch(e) {
-  // Supabase init failed, falling back to local mode
+  // Supabase init failed
 }
 
 // ========== Auth ==========
-let authMode = 'login'; // 'login' or 'signup'
+let authMode = 'login';
 
 function toggleAuthMode() {
   authMode = authMode === 'login' ? 'signup' : 'login';
@@ -335,49 +338,44 @@ function showAuthError(msg) {
   el.style.display = 'block';
 }
 
-document.getElementById('btn-auth').onclick = async function() {
+async function handleAuth() {
   const email = document.getElementById('auth-email').value.trim();
   const password = document.getElementById('auth-password').value;
+  const btn = document.getElementById('btn-auth');
   const succEl = document.getElementById('auth-success');
   document.getElementById('auth-error').style.display = 'none';
   succEl.style.display = 'none';
 
-  if (!supabase) { showAuthError('系統初始化失敗，請重新整理頁面'); return; }
+  if (!sb) { showAuthError('系統初始化失敗，請重新整理頁面'); return; }
   if (!email || !password) { showAuthError('請填寫 Email 和密碼'); return; }
   if (password.length < 6) { showAuthError('密碼至少 6 個字元'); return; }
 
-  this.disabled = true;
-  this.innerHTML = '<span class="spinner"></span>';
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
 
   try {
     if (authMode === 'signup') {
-      const { data, error } = await supabase.auth.signUp({ email, password });
+      const { data, error } = await sb.auth.signUp({ email, password });
       if (error) throw error;
       if (data.user && !data.session) {
         succEl.textContent = '註冊成功！請檢查信箱確認連結。';
         succEl.style.display = 'block';
       }
     } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await sb.auth.signInWithPassword({ email, password });
       if (error) throw error;
     }
   } catch (e) {
     showAuthError(e.message || '驗證失敗');
   }
 
-  this.disabled = false;
-  this.textContent = authMode === 'login' ? 'LOGIN' : 'SIGN UP';
-};
+  btn.disabled = false;
+  btn.textContent = authMode === 'login' ? 'LOGIN' : 'SIGN UP';
+}
 
-// Enter key to submit
-document.getElementById('auth-password').addEventListener('keydown', e => {
-  if (e.key === 'Enter') document.getElementById('btn-auth').click();
-});
-
-// Google OAuth
 async function googleLogin() {
-  if (!supabase) { showAuthError('系統初始化失敗，請重新整理頁面'); return; }
-  const { error } = await supabase.auth.signInWithOAuth({
+  if (!sb) { showAuthError('系統初始化失敗，請重新整理頁面'); return; }
+  const { error } = await sb.auth.signInWithOAuth({
     provider: 'google',
     options: { redirectTo: window.location.origin + window.location.pathname }
   });
@@ -385,7 +383,7 @@ async function googleLogin() {
 }
 
 async function doLogout() {
-  if (supabase) await supabase.auth.signOut();
+  if (sb) await sb.auth.signOut();
   currentUser = null;
   document.getElementById('user-bar').classList.add('hidden');
   document.getElementById('main-app').classList.add('hidden');
@@ -402,21 +400,26 @@ function onAuthReady(user) {
   loadQuestions();
 }
 
+// Bind auth events
+document.getElementById('btn-auth').addEventListener('click', handleAuth);
+document.getElementById('btn-google').addEventListener('click', googleLogin);
+document.getElementById('auth-password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') handleAuth();
+});
+
 // Listen for auth state changes
-if (supabase) {
-  supabase.auth.onAuthStateChange((event, session) => {
+if (sb) {
+  sb.auth.onAuthStateChange((event, session) => {
     if (session?.user) {
       onAuthReady(session.user);
     }
   });
-  // Check existing session on load
-  supabase.auth.getSession().then(({ data }) => {
+  sb.auth.getSession().then(({ data }) => {
     if (!data.session) {
       document.getElementById('auth-screen').classList.remove('hidden');
     }
   });
 } else {
-  // No supabase — skip auth, go straight to app
   document.getElementById('auth-screen').classList.add('hidden');
   loadQuestions();
 }
@@ -457,12 +460,12 @@ function showApp() {
 }
 
 async function loadCloudHistory() {
-  if (!supabase || !currentUser) {
+  if (!sb || !currentUser) {
     history = JSON.parse(localStorage.getItem('ipas_history') || '[]');
     return;
   }
   try {
-    const { data, error } = await supabase
+    const { data, error } = await sb
       .from('quiz_history')
       .select('*')
       .order('created_at', { ascending: false })
@@ -485,7 +488,7 @@ async function loadCloudHistory() {
 }
 
 async function saveResultsToCloud(results) {
-  if (!supabase || !currentUser) {
+  if (!sb || !currentUser) {
     // Fallback to localStorage
     const now = new Date().toISOString();
     const newEntries = results.map(r => ({id:r.id,type:r.type,content:(r.content||'').substring(0,100),chapter:r.chapter_group||'',is_correct:r.is_correct,user_answer:r.user_answer,correct_answer:r.answer,timestamp:now}));
@@ -504,7 +507,7 @@ async function saveResultsToCloud(results) {
     is_correct: r.is_correct,
   }));
   try {
-    const { error } = await supabase.from('quiz_history').insert(rows);
+    const { error } = await sb.from('quiz_history').insert(rows);
     if (error) throw error;
     // Reload cloud history
     await loadCloudHistory();
