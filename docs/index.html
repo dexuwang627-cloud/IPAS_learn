@@ -260,6 +260,7 @@
 let ALL_Q = [];
 let userAnswers = {};
 let quizQuestions = [];
+let answerKey = {};
 let history = JSON.parse(localStorage.getItem('ipas_history') || '[]');
 
 const TYPE_LABELS = {choice:'單選',truefalse:'是非',multichoice:'複選',scenario_choice:'情境單選',scenario_multichoice:'情境複選'};
@@ -333,10 +334,18 @@ function startQuiz(){
   });
 
   quizQuestions=[];
+  answerKey={};
   userAnswers={};
 
+  // Strip answer/explanation from quiz view, store in answerKey
+  const stripAnswer=(q)=>{
+    answerKey[q.id]={answer:q.answer,explanation:q.explanation};
+    const{answer,explanation,...safe}=q;
+    return safe;
+  };
+
   // Pick by type
-  const pick=(type,n)=>shuffle(pool.filter(q=>q.type===type)).slice(0,n);
+  const pick=(type,n)=>shuffle(pool.filter(q=>q.type===type)).slice(0,n).map(stripAnswer);
   quizQuestions.push(...pick('choice',nChoice));
   quizQuestions.push(...pick('truefalse',nTf));
   quizQuestions.push(...pick('multichoice',nMc));
@@ -349,7 +358,7 @@ function startQuiz(){
     let taken=0;
     for(const[,group]of Object.entries(groups)){
       if(taken>=nScenario)break;
-      quizQuestions.push(...group);
+      quizQuestions.push(...group.map(stripAnswer));
       taken++;
     }
   }
@@ -417,9 +426,10 @@ function submitQuiz(){
   let score=0;const results=[];
   for(const q of quizQuestions){
     const ua=userAnswers[q.id]||'';
-    const correct=checkAnswer(ua,q.answer,q.type);
+    const key=answerKey[q.id]||{};
+    const correct=checkAnswer(ua,key.answer||'',q.type);
     if(correct)score++;
-    results.push({...q,user_answer:ua,is_correct:correct});
+    results.push({...q,answer:key.answer,explanation:key.explanation,user_answer:ua,is_correct:correct});
   }
   const total=quizQuestions.length;
   const pct=Math.round(score/total*100);
