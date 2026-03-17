@@ -6,6 +6,7 @@
 <title>iPAS 碳管理測驗</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   :root {
     --bg: #0a0a0a;
@@ -132,6 +133,22 @@
   .weakness-count { font-family: var(--mono); font-size: 11px; color: var(--text-muted); min-width: 60px; text-align: right; }
   .weakness-empty { text-align: center; padding: 40px 20px; color: var(--text-muted); font-size: 14px; }
 
+  /* Auth */
+  .auth-screen { max-width: 380px; margin: 60px auto 0; }
+  .auth-screen h2 { font-family: var(--mono); font-size: 18px; color: var(--accent); text-align: center; margin-bottom: 24px; }
+  .auth-screen .card { padding: 28px; }
+  .auth-input { width: 100%; padding: 11px 14px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; background: var(--bg); color: var(--text); font-family: var(--sans); outline: none; margin-bottom: 12px; transition: border-color 0.2s; }
+  .auth-input:focus { border-color: var(--accent); }
+  .auth-toggle { text-align: center; margin-top: 16px; font-size: 13px; color: var(--text-muted); }
+  .auth-toggle a { color: var(--accent); cursor: pointer; text-decoration: none; }
+  .auth-toggle a:hover { text-decoration: underline; }
+  .auth-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #f87171; padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 12px; display: none; }
+  .auth-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: var(--accent); padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 12px; display: none; }
+  .user-bar { display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 8px 0; margin-bottom: 8px; }
+  .user-email { font-family: var(--mono); font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .btn-logout { font-family: var(--mono); font-size: 11px; padding: 5px 12px; background: transparent; border: 1px solid var(--border); color: var(--text-dim); border-radius: 4px; cursor: pointer; transition: all 0.2s; }
+  .btn-logout:hover { border-color: var(--danger); color: var(--danger); }
+
   .hidden { display: none !important; }
   .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -179,7 +196,28 @@
     <p>碳管理能力鑑定 模擬測驗系統</p>
   </header>
 
-  <div id="loading" class="loading-screen">
+  <!-- Auth Screen -->
+  <div id="auth-screen" class="auth-screen">
+    <div class="card">
+      <h2 id="auth-title">// LOGIN</h2>
+      <div id="auth-error" class="auth-error"></div>
+      <div id="auth-success" class="auth-success"></div>
+      <input type="email" id="auth-email" class="auth-input" placeholder="Email">
+      <input type="password" id="auth-password" class="auth-input" placeholder="Password (min 6 chars)">
+      <button class="btn btn-primary btn-block" id="btn-auth">LOGIN</button>
+      <div class="auth-toggle" id="auth-toggle">
+        還沒有帳號？<a onclick="toggleAuthMode()">註冊</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Bar (shown when logged in) -->
+  <div id="user-bar" class="user-bar hidden">
+    <span class="user-email" id="user-email"></span>
+    <button class="btn-logout" onclick="doLogout()">LOGOUT</button>
+  </div>
+
+  <div id="loading" class="loading-screen hidden">
     <div class="spinner"></div>
     <div style="font-family:var(--mono);font-size:13px;">LOADING QUESTIONS...</div>
   </div>
@@ -256,12 +294,114 @@
   addEventListener('resize',resize);resize();draw();
 })();
 
+// ========== Supabase ==========
+const SUPABASE_URL = 'https://wozpmgdccqyqsiupuutn.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndvenBtZ2RjY3F5cXNpdXB1dXRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3MTI5OTYsImV4cCI6MjA4OTI4ODk5Nn0.rX7uuwlmBwSzOJG7YFlVwAFL58sS7zbFjH7wQJ5JfDA';
+let supabase = null;
+let currentUser = null;
+
+try {
+  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+} catch(e) {
+  console.warn('Supabase init failed, falling back to local mode:', e.message);
+}
+
+// ========== Auth ==========
+let authMode = 'login'; // 'login' or 'signup'
+
+function toggleAuthMode() {
+  authMode = authMode === 'login' ? 'signup' : 'login';
+  document.getElementById('auth-title').textContent = authMode === 'login' ? '// LOGIN' : '// SIGN UP';
+  document.getElementById('btn-auth').textContent = authMode === 'login' ? 'LOGIN' : 'SIGN UP';
+  document.getElementById('auth-toggle').innerHTML = authMode === 'login'
+    ? '還沒有帳號？<a onclick="toggleAuthMode()">註冊</a>'
+    : '已有帳號？<a onclick="toggleAuthMode()">登入</a>';
+  document.getElementById('auth-error').style.display = 'none';
+  document.getElementById('auth-success').style.display = 'none';
+}
+
+document.getElementById('btn-auth').onclick = async function() {
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errEl = document.getElementById('auth-error');
+  const succEl = document.getElementById('auth-success');
+  errEl.style.display = 'none';
+  succEl.style.display = 'none';
+
+  if (!email || !password) { errEl.textContent = '請填寫 Email 和密碼'; errEl.style.display = 'block'; return; }
+  if (password.length < 6) { errEl.textContent = '密碼至少 6 個字元'; errEl.style.display = 'block'; return; }
+
+  this.disabled = true;
+  this.innerHTML = '<span class="spinner"></span>';
+
+  try {
+    if (authMode === 'signup') {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+      if (data.user && !data.session) {
+        succEl.textContent = '註冊成功！請檢查信箱確認連結。';
+        succEl.style.display = 'block';
+      }
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    }
+  } catch (e) {
+    errEl.textContent = e.message || '驗證失敗';
+    errEl.style.display = 'block';
+  }
+
+  this.disabled = false;
+  this.textContent = authMode === 'login' ? 'LOGIN' : 'SIGN UP';
+};
+
+// Enter key to submit
+document.getElementById('auth-password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('btn-auth').click();
+});
+
+async function doLogout() {
+  if (supabase) await supabase.auth.signOut();
+  currentUser = null;
+  document.getElementById('user-bar').classList.add('hidden');
+  document.getElementById('main-app').classList.add('hidden');
+  document.getElementById('loading').classList.add('hidden');
+  document.getElementById('auth-screen').classList.remove('hidden');
+}
+
+function onAuthReady(user) {
+  currentUser = user;
+  document.getElementById('auth-screen').classList.add('hidden');
+  document.getElementById('user-bar').classList.remove('hidden');
+  document.getElementById('user-email').textContent = user.email;
+  loadQuestions();
+}
+
+// Listen for auth state changes
+if (supabase) {
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (session?.user) {
+      onAuthReady(session.user);
+    }
+  });
+  // Check existing session on load
+  supabase.auth.getSession().then(({ data }) => {
+    if (!data.session) {
+      document.getElementById('auth-screen').classList.remove('hidden');
+    }
+  });
+} else {
+  // No supabase — skip auth, go straight to app
+  document.getElementById('auth-screen').classList.add('hidden');
+  loadQuestions();
+}
+
 // ========== State ==========
 let ALL_Q = [];
 let userAnswers = {};
 let quizQuestions = [];
 let answerKey = {};
-let history = JSON.parse(localStorage.getItem('ipas_history') || '[]');
+let history = [];
 
 const TYPE_LABELS = {choice:'單選',truefalse:'是非',multichoice:'複選',scenario_choice:'情境單選',scenario_multichoice:'情境複選'};
 const TYPE_BADGE = {choice:'badge-choice',truefalse:'badge-tf',multichoice:'badge-mc',scenario_choice:'badge-scenario',scenario_multichoice:'badge-scenario'};
@@ -270,14 +410,85 @@ function esc(s){const d=document.createElement('div');d.textContent=s||'';return
 function shuffle(arr){for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;}
 
 // ========== Load Data ==========
-fetch('questions.json').then(r=>r.json()).then(data=>{
-  ALL_Q=data;
+let questionsLoaded = false;
+function loadQuestions() {
+  if (questionsLoaded) { showApp(); return; }
+  document.getElementById('loading').classList.remove('hidden');
+  fetch('questions.json').then(r=>r.json()).then(async data=>{
+    ALL_Q=data;
+    questionsLoaded = true;
+    // Load history from Supabase
+    await loadCloudHistory();
+    showApp();
+  }).catch(e=>{
+    document.getElementById('loading').innerHTML=`<div style="color:var(--danger);font-family:var(--mono);">Failed to load: ${e.message}</div>`;
+  });
+}
+
+function showApp() {
   document.getElementById('loading').classList.add('hidden');
   document.getElementById('main-app').classList.remove('hidden');
   initApp();
-}).catch(e=>{
-  document.getElementById('loading').innerHTML=`<div style="color:var(--danger);font-family:var(--mono);">Failed to load: ${e.message}</div>`;
-});
+}
+
+async function loadCloudHistory() {
+  if (!supabase || !currentUser) {
+    history = JSON.parse(localStorage.getItem('ipas_history') || '[]');
+    return;
+  }
+  try {
+    const { data, error } = await supabase
+      .from('quiz_history')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) throw error;
+    history = (data || []).map(r => ({
+      id: r.question_id,
+      type: r.question_type,
+      content: r.question_content || '',
+      chapter: r.chapter_group || '',
+      is_correct: r.is_correct,
+      user_answer: r.user_answer,
+      correct_answer: r.correct_answer,
+      timestamp: r.created_at,
+    }));
+  } catch (e) {
+    console.warn('Failed to load cloud history:', e.message);
+    history = JSON.parse(localStorage.getItem('ipas_history') || '[]');
+  }
+}
+
+async function saveResultsToCloud(results) {
+  if (!supabase || !currentUser) {
+    // Fallback to localStorage
+    const now = new Date().toISOString();
+    results.forEach(r => {
+      history.push({id:r.id,type:r.type,content:(r.content||'').substring(0,100),chapter:r.chapter_group||'',is_correct:r.is_correct,user_answer:r.user_answer,correct_answer:r.answer,timestamp:now});
+    });
+    if(history.length>500)history=history.slice(-500);
+    localStorage.setItem('ipas_history',JSON.stringify(history));
+    return;
+  }
+  const rows = results.map(r => ({
+    user_id: currentUser.id,
+    question_id: r.id,
+    question_type: r.type,
+    question_content: (r.content || '').substring(0, 100),
+    chapter_group: r.chapter_group || null,
+    user_answer: r.user_answer || '',
+    correct_answer: r.answer,
+    is_correct: r.is_correct,
+  }));
+  try {
+    const { error } = await supabase.from('quiz_history').insert(rows);
+    if (error) throw error;
+    // Reload cloud history
+    await loadCloudHistory();
+  } catch (e) {
+    console.warn('Failed to save to cloud:', e.message);
+  }
+}
 
 function initApp(){
   // Stats
@@ -435,13 +646,8 @@ function submitQuiz(){
   const pct=Math.round(score/total*100);
   const color=pct>=60?'var(--accent)':'var(--danger)';
 
-  // Save history
-  const now=new Date().toISOString();
-  results.forEach(r=>{
-    history.push({id:r.id,type:r.type,content:(r.content||'').substring(0,100),chapter:r.chapter_group||'',is_correct:r.is_correct,user_answer:r.user_answer,correct_answer:r.answer,timestamp:now});
-  });
-  if(history.length>500)history=history.slice(-500);
-  localStorage.setItem('ipas_history',JSON.stringify(history));
+  // Save history to cloud (or localStorage fallback)
+  saveResultsToCloud(results);
 
   document.getElementById('quiz-result').innerHTML=`<div class="card score-card"><div class="score-big" style="color:${color}">${pct}%</div><div class="score-label">${score} / ${total} correct</div><div class="score-bar"><div class="score-fill" style="width:${pct}%;background:${color}"></div></div><div style="margin-top:20px;display:flex;gap:10px;justify-content:center;"><button class="btn btn-primary" onclick="resetQuiz()">RETRY</button><button class="btn btn-outline" onclick="document.querySelector('[data-tab=weakness]').click()">VIEW WEAKNESS</button></div></div>`;
   document.getElementById('quiz-result').classList.remove('hidden');
