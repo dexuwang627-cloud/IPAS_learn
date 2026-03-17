@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 import os
 
-from database import init_db, migrate_add_explanation
+from database import init_db, migrate_add_explanation, migrate_add_multichoice_scenario
 from services.embedding_service import init_chroma
 from routers import questions, quiz, generate
 
@@ -19,6 +19,7 @@ from routers import questions, quiz, generate
 async def lifespan(app: FastAPI):
     init_db()
     migrate_add_explanation()
+    migrate_add_multichoice_scenario()
     init_chroma()
     yield
 

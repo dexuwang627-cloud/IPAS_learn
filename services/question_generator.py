@@ -85,10 +85,16 @@ def _normalize_question(q: dict) -> Optional[dict]:
 
     # 正規化 type
     raw_type = str(q.get("type", "")).lower().replace("_", "").replace("-", "")
-    if raw_type in ("choice", "multiplechoice"):
+    if raw_type in ("choice", "singlechoice"):
         q["type"] = "choice"
+    elif raw_type in ("multichoice", "multiplechoice", "multiselect"):
+        q["type"] = "multichoice"
     elif raw_type in ("truefalse", "trueorfalse", "tf"):
         q["type"] = "truefalse"
+    elif raw_type in ("scenariochoice",):
+        q["type"] = "scenario_choice"
+    elif raw_type in ("scenariomultichoice",):
+        q["type"] = "scenario_multichoice"
     else:
         return None
 
@@ -102,8 +108,12 @@ def _normalize_question(q: dict) -> Optional[dict]:
     answer = q.get("answer")
     if isinstance(answer, bool):
         q["answer"] = "T" if answer else "F"
+    elif isinstance(answer, list):
+        # 複選題可能回傳 ["A", "C"] 格式
+        q["answer"] = "".join(sorted(str(a).strip().upper() for a in answer))
     elif isinstance(answer, str):
-        q["answer"] = answer.strip().upper()
+        ans = answer.strip().upper().replace(",", "").replace(" ", "")
+        q["answer"] = "".join(sorted(ans))
     else:
         return None
 
@@ -122,6 +132,9 @@ def _normalize_question(q: dict) -> Optional[dict]:
     # 正規化 explanation（有些模型用 "reference"）
     if "explanation" not in q or not q.get("explanation"):
         q["explanation"] = q.pop("reference", None)
+
+    # 保留 scenario 欄位
+    # scenario_id 和 scenario_text 由外部設定
 
     return q
 
@@ -143,16 +156,30 @@ def _parse_response(raw: str) -> list[dict]:
         if normalized is None:
             continue
 
-        if normalized["type"] == "choice":
+        q_type = normalized["type"]
+
+        if q_type in ("choice", "scenario_choice"):
             if normalized["answer"] not in ("A", "B", "C", "D"):
                 continue
             if not all(normalized.get(f"option_{k}") for k in "abcd"):
                 continue
-        elif normalized["type"] == "truefalse":
+
+        elif q_type in ("multichoice", "scenario_multichoice"):
+            # 複選答案：2-4 個字母，每個都是 A-D
+            ans = normalized["answer"]
+            if not (2 <= len(ans) <= 4 and all(c in "ABCD" for c in ans)):
+                continue
+            if not all(normalized.get(f"option_{k}") for k in "abcd"):
+                continue
+
+        elif q_type == "truefalse":
             if normalized["answer"] not in ("T", "F"):
                 continue
             for k in ("option_a", "option_b", "option_c", "option_d"):
                 normalized.pop(k, None)
+
+        else:
+            continue
 
         valid.append(normalized)
 

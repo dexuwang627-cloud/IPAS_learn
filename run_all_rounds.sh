@@ -4,7 +4,8 @@ set -e
 cd /Users/te-shuwang/ipas-quiz
 
 export PYTHONIOENCODING=utf-8
-export GEMINI_API_KEY=AIzaSyAZf6OuOXjiMkW8pITZIdl536psQ1PmPwg
+# API key from .env, do NOT hardcode here
+set -a; source .env; set +a
 
 echo "=== 等待第一輪完成 ==="
 while pgrep -f "batch_generate.py" > /dev/null 2>&1; do
