@@ -202,8 +202,8 @@
       <h2 id="auth-title">// LOGIN</h2>
       <div id="auth-error" class="auth-error"></div>
       <div id="auth-success" class="auth-success"></div>
-      <input type="email" id="auth-email" class="auth-input" placeholder="Email">
-      <input type="password" id="auth-password" class="auth-input" placeholder="Password (min 6 chars)">
+      <input type="email" id="auth-email" class="auth-input" placeholder="Email" autocomplete="email" aria-label="Email">
+      <input type="password" id="auth-password" class="auth-input" placeholder="Password (min 6 chars)" autocomplete="current-password" aria-label="Password">
       <button class="btn btn-primary btn-block" id="btn-auth">LOGIN</button>
       <div class="auth-toggle" id="auth-toggle">
         還沒有帳號？<a onclick="toggleAuthMode()">註冊</a>
@@ -303,7 +303,7 @@ let currentUser = null;
 try {
   supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 } catch(e) {
-  console.warn('Supabase init failed, falling back to local mode:', e.message);
+  // Supabase init failed, falling back to local mode
 }
 
 // ========== Auth ==========
@@ -370,6 +370,7 @@ async function doLogout() {
 }
 
 function onAuthReady(user) {
+  if (currentUser) return;
   currentUser = user;
   document.getElementById('auth-screen').classList.add('hidden');
   document.getElementById('user-bar').classList.remove('hidden');
@@ -454,7 +455,7 @@ async function loadCloudHistory() {
       timestamp: r.created_at,
     }));
   } catch (e) {
-    console.warn('Failed to load cloud history:', e.message);
+    // Failed to load cloud history — use localStorage fallback
     history = JSON.parse(localStorage.getItem('ipas_history') || '[]');
   }
 }
@@ -463,10 +464,8 @@ async function saveResultsToCloud(results) {
   if (!supabase || !currentUser) {
     // Fallback to localStorage
     const now = new Date().toISOString();
-    results.forEach(r => {
-      history.push({id:r.id,type:r.type,content:(r.content||'').substring(0,100),chapter:r.chapter_group||'',is_correct:r.is_correct,user_answer:r.user_answer,correct_answer:r.answer,timestamp:now});
-    });
-    if(history.length>500)history=history.slice(-500);
+    const newEntries = results.map(r => ({id:r.id,type:r.type,content:(r.content||'').substring(0,100),chapter:r.chapter_group||'',is_correct:r.is_correct,user_answer:r.user_answer,correct_answer:r.answer,timestamp:now}));
+    history = [...history, ...newEntries].slice(-500);
     localStorage.setItem('ipas_history',JSON.stringify(history));
     return;
   }
@@ -486,7 +485,7 @@ async function saveResultsToCloud(results) {
     // Reload cloud history
     await loadCloudHistory();
   } catch (e) {
-    console.warn('Failed to save to cloud:', e.message);
+    // Failed to save to cloud — silent fallback
   }
 }
 
