@@ -75,7 +75,7 @@ class TestAdminListOrgs:
     def test_list_orgs(self, client, admin_headers, org_db):
         client.post("/api/v1/org", json={"name": "A", "seat_limit": 5}, headers=admin_headers)
         client.post("/api/v1/org", json={"name": "B", "seat_limit": 10}, headers=admin_headers)
-        resp = client.get("/api/v1/orgs", headers=admin_headers)
+        resp = client.get("/api/v1/org", headers=admin_headers)
         assert resp.status_code == 200
         assert len(resp.json()) == 2
 

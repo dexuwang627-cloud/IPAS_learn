@@ -224,6 +224,9 @@ def _sqlite_get_org_by_invite_code(invite_code: str) -> Optional[dict]:
         conn.close()
 
 
+_ALLOWED_UPDATE_COLS = frozenset({"name", "seat_limit", "is_active", "updated_at"})
+
+
 def _sqlite_update_org(org_id: int, updates: dict) -> Optional[dict]:
     now = datetime.now(timezone.utc).isoformat()
     conn = _sqlite_conn()
@@ -233,6 +236,11 @@ def _sqlite_update_org(org_id: int, updates: dict) -> Optional[dict]:
         if "is_active" in sql_updates:
             sql_updates["is_active"] = 1 if sql_updates["is_active"] else 0
         sql_updates["updated_at"] = now
+
+        # Defense-in-depth: reject any column not in the whitelist
+        for k in sql_updates:
+            if k not in _ALLOWED_UPDATE_COLS:
+                raise ValueError(f"Invalid update column: {k}")
 
         set_clause = ", ".join(f"{k} = ?" for k in sql_updates)
         values = list(sql_updates.values()) + [org_id]
@@ -261,15 +269,20 @@ def _sqlite_add_member(org_id: int, user_id: str) -> dict:
     now = datetime.now(timezone.utc).isoformat()
     conn = _sqlite_conn()
     try:
-        # Single transaction: check org active, seat count, duplicate, then insert
+        # BEGIN IMMEDIATE acquires a write lock, preventing concurrent
+        # seat-check races between SELECT count and INSERT.
+        conn.execute("BEGIN IMMEDIATE")
+
         org = conn.execute("SELECT * FROM organizations WHERE id = ?", (org_id,)).fetchone()
         if not org or not org["is_active"]:
+            conn.rollback()
             raise ValueError("Organization is not active")
 
         current = conn.execute(
             "SELECT COUNT(*) as cnt FROM org_members WHERE org_id = ?", (org_id,)
         ).fetchone()["cnt"]
         if current >= org["seat_limit"]:
+            conn.rollback()
             raise ValueError(f"Seat limit reached ({org['seat_limit']})")
 
         try:
@@ -279,9 +292,15 @@ def _sqlite_add_member(org_id: int, user_id: str) -> dict:
             )
             conn.commit()
         except sqlite3.IntegrityError:
+            conn.rollback()
             raise ValueError("User already belongs to an organization")
 
         return {"org_id": org_id, "user_id": user_id, "joined_at": now}
+    except ValueError:
+        raise
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 

@@ -34,7 +34,7 @@ async def create_org(req: CreateOrgRequest, user: dict = Depends(_require_admin)
     return org
 
 
-@router.get("s")
+@router.get("")
 async def list_orgs(_user: dict = Depends(_require_admin)):
     return database_org.list_orgs()
 

@@ -60,9 +60,14 @@ async def get_my_org(user: dict = Depends(require_auth)):
     limits = access_control.get_tier_limits(tier)
     org_info = database_org.get_user_org(user_id)
 
+    # Strip invite_code from user-facing response (admin-only info)
+    safe_org = None
+    if org_info:
+        safe_org = {k: v for k, v in org_info.items() if k != "invite_code"}
+
     return {
         "tier": tier,
         "remaining_questions": remaining,
         "limits": limits,
-        "organization": org_info,
+        "organization": safe_org,
     }
