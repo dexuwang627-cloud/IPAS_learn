@@ -25,6 +25,7 @@ _headers = {  # pragma: no cover
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
     "Content-Type": "application/json",
+    "Accept": "application/json",
     "Prefer": "return=representation",
 }
 
@@ -61,7 +62,7 @@ def _validate_bank_id(value: str) -> str:
 def _supabase_request(method: str, url: str, **kwargs) -> httpx.Response:  # pragma: no cover
     """Execute an HTTP request to Supabase with error handling."""
     try:
-        resp = getattr(httpx, method)(url, timeout=10, **kwargs)
+        resp = getattr(httpx, method)(url, timeout=10, follow_redirects=True, **kwargs)
         resp.raise_for_status()
         return resp
     except httpx.HTTPStatusError as e:
