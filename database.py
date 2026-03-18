@@ -173,6 +173,29 @@ def delete_question(question_id: int):
     _supabase_request("delete", url, headers=_headers)
 
 
+def search_questions(
+    query: str,
+    limit: int = 20,
+    offset: int = 0,
+    bank_id: Optional[str] = None,
+) -> tuple[list[dict], int]:
+    """Full-text search across question content, options, and explanation."""
+    if not _is_supabase():
+        return _sqlite_search_questions(query, limit, offset, bank_id)
+
+    term = f"*{query}*"
+    cols = ["content", "option_a", "option_b", "option_c", "option_d", "explanation"]
+    or_clause = ",".join(f"{c}.ilike.{quote(term, safe='')}" for c in cols)
+    url = f"{REST_URL}/questions?or=({or_clause})&order=id.desc&limit={limit}&offset={offset}"
+    if bank_id:
+        _validate_bank_id(bank_id)
+        url += f"&bank_id=eq.{quote(bank_id, safe='')}"
+    count_headers = {**_headers, "Prefer": "count=exact"}
+    resp = _supabase_request("get", url, headers=count_headers)
+    total = int(resp.headers.get("content-range", "0/0").split("/")[-1] or 0)
+    return resp.json(), total
+
+
 def insert_question(q: dict) -> int:
     """Insert a question and return its ID."""
     if not _is_supabase():
@@ -370,11 +393,12 @@ def get_exam_session(session_id: str, user_id: str) -> Optional[dict]:
 def submit_exam_session(
     session_id: str, user_id: str,
     score: int, total: int, tab_switches: int,
+    question_results: list | None = None,
 ) -> dict:
     """Mark exam as submitted with final score."""
     if not _is_supabase():
         return _sqlite_submit_exam_session(
-            session_id, user_id, score, total, tab_switches,
+            session_id, user_id, score, total, tab_switches, question_results,
         )
 
     _validate_uuid(session_id, "session_id")
@@ -387,6 +411,8 @@ def submit_exam_session(
         "total": total,
         "tab_switches": tab_switches,
     }
+    if question_results is not None:
+        payload["question_results"] = question_results
     url = f"{REST_URL}/exam_sessions?id=eq.{session_id}&user_id=eq.{safe_uid}"
     resp = _supabase_request("patch", url, json=payload, headers=_headers)
     rows = resp.json()
@@ -527,7 +553,8 @@ def _sqlite_init_db():
             score         INTEGER,
             total         INTEGER,
             tab_switches  INTEGER NOT NULL DEFAULT 0,
-            status        TEXT NOT NULL DEFAULT 'active'
+            status        TEXT NOT NULL DEFAULT 'active',
+            question_results TEXT
         )
     """)
     conn.commit()
@@ -615,6 +642,25 @@ def _sqlite_delete_question(question_id: int):
     conn.execute("DELETE FROM questions WHERE id = ?", (question_id,))
     conn.commit()
     conn.close()
+
+
+def _sqlite_search_questions(query: str, limit: int, offset: int, bank_id: Optional[str]) -> tuple[list[dict], int]:
+    conn = sqlite3.connect(_SQLITE_DB)
+    conn.row_factory = sqlite3.Row
+    like = f"%{query}%"
+    where = "(content LIKE ? OR option_a LIKE ? OR option_b LIKE ? OR option_c LIKE ? OR option_d LIKE ? OR explanation LIKE ?)"
+    params = [like] * 6
+    if bank_id:
+        _validate_bank_id(bank_id)
+        where += " AND bank_id = ?"
+        params.append(bank_id)
+    count = conn.execute(f"SELECT COUNT(*) FROM questions WHERE {where}", params).fetchone()[0]
+    rows = conn.execute(
+        f"SELECT * FROM questions WHERE {where} ORDER BY id DESC LIMIT ? OFFSET ?",
+        params + [limit, offset],
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows], count
 
 
 def _sqlite_insert_question(q: dict) -> int:
@@ -733,17 +779,21 @@ def _sqlite_get_exam_session(session_id, user_id) -> Optional[dict]:
     d = dict(row)
     d["question_ids"] = json.loads(d["question_ids"]) if isinstance(d["question_ids"], str) else d["question_ids"]
     d["shuffle_map"] = json.loads(d["shuffle_map"]) if isinstance(d["shuffle_map"], str) else d["shuffle_map"]
+    if d.get("question_results") and isinstance(d["question_results"], str):
+        d["question_results"] = json.loads(d["question_results"])
     return d
 
 
-def _sqlite_submit_exam_session(session_id, user_id, score, total, tab_switches) -> dict:
+def _sqlite_submit_exam_session(session_id, user_id, score, total, tab_switches, question_results=None) -> dict:
     now = datetime.now(timezone.utc).isoformat()
     conn = sqlite3.connect(_SQLITE_DB)
     conn.execute("""
         UPDATE exam_sessions
-        SET status = 'submitted', submitted_at = ?, score = ?, total = ?, tab_switches = ?
+        SET status = 'submitted', submitted_at = ?, score = ?, total = ?, tab_switches = ?,
+            question_results = ?
         WHERE id = ? AND user_id = ?
-    """, (now, score, total, tab_switches, session_id, user_id))
+    """, (now, score, total, tab_switches, json.dumps(question_results) if question_results else None,
+          session_id, user_id))
     conn.commit()
     conn.close()
     return {"id": session_id, "status": "submitted", "score": score, "total": total}
@@ -843,8 +893,14 @@ def _sqlite_migrate_add_exam_sessions():
             score         INTEGER,
             total         INTEGER,
             tab_switches  INTEGER NOT NULL DEFAULT 0,
-            status        TEXT NOT NULL DEFAULT 'active'
+            status        TEXT NOT NULL DEFAULT 'active',
+            question_results TEXT
         )
     """)
+    # Migration for existing DBs missing the column
+    try:
+        conn.execute("ALTER TABLE exam_sessions ADD COLUMN question_results TEXT")
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
     conn.close()

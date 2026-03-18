@@ -6,8 +6,9 @@ from fastapi import APIRouter, Query, Depends
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from typing import Optional
-from database import get_questions, get_questions_by_ids, get_seen_ids, mark_seen, reset_session, save_history_batch
+from database import get_questions, get_questions_by_ids, get_seen_ids, mark_seen, reset_session, save_history_batch, get_weakness_stats
 from auth import require_auth
+from fastapi import HTTPException
 
 try:
     from services.exam_builder import build_exam_pdf
@@ -242,3 +243,65 @@ async def quiz_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": "attachment; filename=ipas_quiz.pdf"}
     )
+
+
+class WeaknessQuizRequest(BaseModel):
+    num_questions: int = Field(15, ge=5, le=50, description="Total questions")
+    num_weak_chapters: int = Field(3, ge=1, le=10, description="Weakest chapters to target")
+    difficulty: Optional[int] = Field(None, ge=1, le=3)
+    bank_id: Optional[str] = Field(None)
+    session_id: Optional[str] = Field(None)
+
+
+@router.post("/quiz/weakness")
+async def weakness_quiz(req: WeaknessQuizRequest, user: dict = Depends(require_auth)):
+    """Generate a quiz focused on user's weakest chapters."""
+    user_id = user.get("sub", "")
+    stats = get_weakness_stats(user_id)
+    if not stats:
+        raise HTTPException(400, "No quiz history found. Complete some quizzes first.")
+
+    # Sort by accuracy ascending (weakest first), take top N
+    sorted_stats = sorted(stats, key=lambda s: s.get("correct", 0) / max(s.get("total", 1), 1))
+    weak = sorted_stats[:req.num_weak_chapters]
+
+    # Distribute questions inversely proportional to accuracy
+    weights = []
+    for s in weak:
+        pct = s.get("correct", 0) / max(s.get("total", 1), 1)
+        weights.append(1.0 - pct + 0.1)  # +0.1 so even 100% chapters get some
+    total_weight = sum(weights)
+
+    session_id = req.session_id or str(uuid.uuid4())
+    exclude_ids = get_seen_ids(user_id, session_id) if req.session_id else []
+
+    all_questions = []
+    for i, s in enumerate(weak):
+        chapter = s.get("chapter", "")
+        n = max(1, round(req.num_questions * weights[i] / total_weight))
+        qs = get_questions(
+            chapter=chapter, difficulty=req.difficulty,
+            q_type=None, limit=n, bank_id=req.bank_id,
+            exclude_ids=exclude_ids,
+        )
+        all_questions.extend(qs)
+
+    # Trim to requested count
+    all_questions = all_questions[:req.num_questions]
+
+    if not all_questions:
+        raise HTTPException(400, "No questions available for weak chapters.")
+
+    # Strip answers
+    safe_qs = [{k: v for k, v in q.items() if k not in ("answer", "explanation")} for q in all_questions]
+
+    # Mark seen
+    q_ids = [q["id"] for q in all_questions]
+    mark_seen(user_id, session_id, q_ids)
+
+    return {
+        "session_id": session_id,
+        "total": len(safe_qs),
+        "questions": safe_qs,
+        "weak_chapters": [s.get("chapter") for s in weak],
+    }

@@ -149,6 +149,9 @@ async def submit_exam(
             "user_answer": user_answer,
             "correct_answer": q["answer"],
             "explanation": q.get("explanation"),
+            "content": q.get("content", ""),
+            "chapter": q.get("chapter", ""),
+            "type": q.get("type", ""),
         })
 
     total = len(results)
@@ -158,6 +161,7 @@ async def submit_exam(
     submit_exam_session(
         exam_id, user_id,
         score=final_score, total=total, tab_switches=req.tab_switches,
+        question_results=results,
     )
 
     return {
@@ -169,6 +173,31 @@ async def submit_exam(
         "penalty": base_score - final_score,
         "expired": expired,
         "results": results,
+    }
+
+
+@router.get("/exam/{exam_id}/results")
+async def exam_results(exam_id: str, user: dict = Depends(require_auth)):
+    """Get detailed results for a completed exam."""
+    user_id = user.get("sub", "")
+    session = get_exam_session(exam_id, user_id)
+    if not session:
+        raise HTTPException(404, "Exam session not found")
+    if session["status"] != "submitted":
+        raise HTTPException(400, "Exam not yet submitted")
+
+    question_results = session.get("question_results") or []
+
+    return {
+        "exam_id": exam_id,
+        "score": session.get("score", 0),
+        "total": session.get("total", 0),
+        "percentage": round(session["score"] / session["total"] * 100, 1) if session.get("total") else 0,
+        "tab_switches": session.get("tab_switches", 0),
+        "penalty": session.get("base_score", session.get("score", 0)) - session.get("score", 0),
+        "duration_min": session.get("duration_min", 0),
+        "started_at": session.get("started_at"),
+        "question_results": question_results,
     }
 
 

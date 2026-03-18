@@ -20,6 +20,7 @@ from routers import questions, quiz
 from routers.config_routes import router as config_router
 from routers.history import router as history_router
 from routers.exam import router as exam_router
+from routers.search import router as search_router
 
 
 @asynccontextmanager
@@ -60,6 +61,7 @@ app.add_middleware(
         "/api/questions": 30,
         "/api/exam": 10,
         "/api/history": 30,
+        "/api/questions/search": 30,
     },
 )
 
@@ -69,6 +71,7 @@ app.include_router(questions.router, prefix="/api/v1")
 app.include_router(quiz.router, prefix="/api/v1")
 app.include_router(history_router, prefix="/api/v1")
 app.include_router(exam_router, prefix="/api/v1")
+app.include_router(search_router, prefix="/api/v1")
 
 # Deprecated: mount on /api for backward compat
 app.include_router(questions.router, prefix="/api", deprecated=True)
