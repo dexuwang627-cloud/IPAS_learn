@@ -7,6 +7,7 @@ import { loadBank } from './bank.js';
 import { initSearchUI, doSearch } from './search.js';
 import { renderNotebook, toggleBookmark, removeFromNotebook, startNotebookPractice, filterNotebook, sortNotebook, notebookPage } from './notebook.js';
 import { renderDashboard, toggleGranularity } from './dashboard.js';
+import { updateTierUI, showJoinModal, hideJoinModal, joinOrg, leaveOrg } from './org.js';
 import { authFetch } from './api.js';
 import { API } from './utils.js';
 
@@ -31,6 +32,10 @@ window.filterNotebook = filterNotebook;
 window.sortNotebook = sortNotebook;
 window.notebookPage = notebookPage;
 window.toggleGranularity = toggleGranularity;
+window.showJoinModal = showJoinModal;
+window.hideJoinModal = hideJoinModal;
+window.joinOrg = joinOrg;
+window.leaveOrg = leaveOrg;
 
 // Tab switching
 document.querySelectorAll('.tab').forEach(tab => {
@@ -86,6 +91,7 @@ async function init() {
   } catch (e) {}
 
   initSearchUI();
+  updateTierUI();
 }
 
 // Boot

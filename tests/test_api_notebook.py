@@ -1,4 +1,14 @@
 """API endpoint tests for wrong answer notebook."""
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _make_test_user_pro():
+    """Notebook practice requires Pro tier, so add test user to an org."""
+    import database_org
+    database_org.migrate_add_org_tables()
+    org = database_org.create_org("NbOrg", seat_limit=10, created_by="admin")
+    database_org.add_member(org["id"], "test-user-00000000-0000-0000-0000-000000000001")
 
 
 def _do_quiz_with_wrong_answers(client, auth_headers):

@@ -5,6 +5,7 @@ from typing import Optional
 
 from auth import require_auth
 from database import get_questions_by_ids
+from access_control import get_user_tier, get_tier_limits
 from database_notebook import (
     get_notebook_entries,
     get_notebook_stats,
@@ -32,10 +33,17 @@ async def list_notebook(
     offset: int = Query(0, ge=0),
 ):
     """List wrong/bookmarked questions with pagination."""
+    tier = get_user_tier(user["sub"])
+    limits = get_tier_limits(tier)
+    # Free tier: cap visible entries
+    effective_limit = limit
+    if limits["notebook_view_limit"] is not None:
+        effective_limit = min(limit, limits["notebook_view_limit"])
+
     items, total = get_notebook_entries(
-        user["sub"], filter, chapter, sort, limit, offset,
+        user["sub"], filter, chapter, sort, effective_limit, offset,
     )
-    return {"items": items, "total": total, "limit": limit, "offset": offset}
+    return {"items": items, "total": total, "limit": effective_limit, "offset": offset, "tier": tier}
 
 
 @router.get("/stats")
@@ -70,7 +78,10 @@ async def delete_notebook_entry_route(
 async def notebook_practice(
     req: NotebookPracticeRequest, user: dict = Depends(require_auth),
 ):
-    """Generate a quiz from wrong/bookmarked questions."""
+    """Generate a quiz from wrong/bookmarked questions. Pro only."""
+    tier = get_user_tier(user["sub"])
+    if not get_tier_limits(tier)["notebook_practice"]:
+        raise HTTPException(403, "Notebook practice requires Pro tier")
     question_ids = get_notebook_question_ids(
         user["sub"], req.filter, req.chapter, req.num_questions,
     )

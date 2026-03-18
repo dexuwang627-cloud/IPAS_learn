@@ -9,6 +9,8 @@ from typing import Optional
 from database import get_questions, get_questions_by_ids, get_seen_ids, mark_seen, reset_session, save_history_batch, get_weakness_stats
 from auth import require_auth
 from fastapi import HTTPException
+from access_control import is_within_daily_limit, get_user_tier
+from database_org import increment_daily_usage
 
 try:
     from services.exam_builder import build_exam_pdf
@@ -90,6 +92,11 @@ def _fetch_questions_by_types(req: QuizRequest, exclude: list[int] | None):
 async def start_quiz(req: QuizRequest, user: dict = Depends(require_auth)):
     """依條件隨機出題，支援單選、複選、情境題"""
     user_id = user.get("sub", "")
+
+    # Free tier daily limit check
+    if not is_within_daily_limit(user_id):
+        raise HTTPException(status_code=403, detail="Daily question limit reached. Upgrade to Pro for unlimited access.")
+
     session_id = req.session_id or str(uuid.uuid4())
 
     seen = get_seen_ids(user_id, session_id)
@@ -100,6 +107,9 @@ async def start_quiz(req: QuizRequest, user: dict = Depends(require_auth)):
     new_ids = [q["id"] for q in questions]
     if new_ids:
         mark_seen(user_id, session_id, new_ids)
+        # Track daily usage for free tier
+        if get_user_tier(user_id) == "free":
+            increment_daily_usage(user_id, count=len(new_ids))
 
     quiz_items = []
     for q in questions:

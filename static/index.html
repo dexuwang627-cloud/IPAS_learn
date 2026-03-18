@@ -46,7 +46,25 @@
   <!-- User Bar -->
   <div id="user-bar" class="user-bar hidden">
     <span class="user-email" id="user-email"></span>
+    <span id="tier-badge" class="tier-badge tier-free">FREE</span>
+    <span id="org-name" class="org-name hidden"></span>
+    <span id="daily-counter" class="daily-counter hidden"></span>
+    <button class="btn-sm btn-outline" onclick="showJoinModal()" style="font-size:11px;padding:4px 10px;">Invite Code</button>
     <button class="btn-logout" id="btn-logout" type="button">LOGOUT</button>
+  </div>
+
+  <!-- Org Join Modal -->
+  <div id="org-modal" class="modal-overlay hidden">
+    <div class="card modal-card">
+      <h2>// JOIN ORGANIZATION</h2>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">Enter the 8-character invite code from your organization</p>
+      <input type="text" id="invite-code-input" class="auth-input" placeholder="ABCD1234" maxlength="8" style="text-transform:uppercase;letter-spacing:3px;text-align:center;font-family:var(--mono);font-size:20px;">
+      <div id="join-error" class="auth-error"></div>
+      <div style="display:flex;gap:10px;margin-top:12px;">
+        <button class="btn btn-primary" style="flex:1" onclick="joinOrg()">JOIN</button>
+        <button class="btn btn-outline" style="flex:1" onclick="hideJoinModal()">CANCEL</button>
+      </div>
+    </div>
   </div>
 
   <div id="main-app" class="hidden">
@@ -148,7 +166,7 @@
           </select>
         </div>
       </div>
-      <button class="btn btn-primary" id="btn-notebook-practice" onclick="startNotebookPractice()" style="margin-bottom:12px;">PRACTICE FROM NOTEBOOK</button>
+      <button class="btn btn-primary" id="btn-notebook-practice" onclick="startNotebookPractice()" style="margin-bottom:12px;" data-pro-only>PRACTICE FROM NOTEBOOK <span class="lock-icon">&#128274;</span></button>
     </div>
     <div id="notebook-list"></div>
   </div>
@@ -159,18 +177,23 @@
       <h2>// LEARNING DASHBOARD</h2>
       <div id="dashboard-summary" class="stats-row"></div>
     </div>
-    <div class="card">
-      <div style="display:flex;gap:8px;margin-bottom:12px;">
-        <button class="granularity-btn active" data-granularity="day" onclick="toggleGranularity('day')">Day</button>
-        <button class="granularity-btn" data-granularity="week" onclick="toggleGranularity('week')">Week</button>
+    <div class="card" data-pro-only>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div style="display:flex;gap:8px;">
+          <button class="granularity-btn active" data-granularity="day" onclick="toggleGranularity('day')">Day</button>
+          <button class="granularity-btn" data-granularity="week" onclick="toggleGranularity('week')">Week</button>
+        </div>
+        <span class="lock-icon" style="font-size:16px;">&#128274; PRO</span>
       </div>
       <div style="height:250px;"><canvas id="chart-accuracy"></canvas></div>
     </div>
-    <div class="card">
+    <div class="card" data-pro-only>
       <div style="height:200px;"><canvas id="chart-volume"></canvas></div>
+      <span class="lock-icon" style="position:absolute;top:12px;right:16px;font-size:14px;">&#128274;</span>
     </div>
-    <div class="card">
+    <div class="card" data-pro-only>
       <div style="height:300px;"><canvas id="chart-chapters"></canvas></div>
+      <span class="lock-icon" style="position:absolute;top:12px;right:16px;font-size:14px;">&#128274;</span>
     </div>
   </div>
 

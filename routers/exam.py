@@ -15,6 +15,8 @@ from database import (
 from services.exam_service import (
     shuffle_questions, unshuffle_answers, is_expired, calculate_penalty,
 )
+from access_control import is_within_daily_limit, get_user_tier
+from database_org import increment_daily_usage
 
 router = APIRouter(tags=["Exam"])
 
@@ -77,6 +79,11 @@ def _check_answer(user_answer: str, correct_answer: str, q_type: str) -> bool:
 async def start_exam(req: ExamStartRequest, user: dict = Depends(require_auth)):
     """Start a timed exam session with shuffled questions."""
     user_id = user.get("sub", "")
+
+    # Free tier daily limit check
+    if not is_within_daily_limit(user_id):
+        raise HTTPException(403, "Daily question limit reached. Upgrade to Pro for unlimited access.")
+
     questions = _fetch_exam_questions(req)
 
     if not questions:
@@ -86,6 +93,11 @@ async def start_exam(req: ExamStartRequest, user: dict = Depends(require_auth)):
     shuffled, shuffle_map = shuffle_questions(questions, seed)
 
     question_ids = [q["id"] for q in questions]
+
+    # Track daily usage for free tier
+    if get_user_tier(user_id) == "free":
+        increment_daily_usage(user_id, count=len(question_ids))
+
     session = create_exam_session(
         user_id=user_id,
         bank_id=req.bank_id or "ipas-netzero-mid",
