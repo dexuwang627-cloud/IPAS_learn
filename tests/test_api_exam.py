@@ -99,6 +99,29 @@ def test_tab_switch_penalty(client, populated_db, auth_headers):
     assert data["penalty"] == data["base_score"] - data["score"]
 
 
+def test_tab_switch_server_overrides_client(client, populated_db, auth_headers):
+    """Server-tracked tab_switches must be used, not client-provided value."""
+    start = client.post("/api/v1/exam/start", json={
+        "num_choice": 2, "num_tf": 0, "num_multichoice": 0,
+        "num_scenario": 0, "duration_min": 60,
+    }, headers=auth_headers)
+    exam = start.json()
+    exam_id = exam["exam_id"]
+
+    # Record 2 server-side tab switches
+    client.post(f"/api/v1/exam/{exam_id}/tab-switch", headers=auth_headers)
+    client.post(f"/api/v1/exam/{exam_id}/tab-switch", headers=auth_headers)
+
+    # Client lies: claims 0 tab switches
+    answers = {str(q["id"]): "A" for q in exam["questions"]}
+    res = client.post(f"/api/v1/exam/{exam_id}/submit", json={
+        "answers": answers, "tab_switches": 0,
+    }, headers=auth_headers)
+    data = res.json()
+    # Server count (2) must win over client claim (0)
+    assert data["tab_switches"] == 2
+
+
 def test_exam_history(client, populated_db, auth_headers):
     # Start and submit an exam
     start = client.post("/api/v1/exam/start", json={

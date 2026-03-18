@@ -27,6 +27,11 @@ export async function startQuiz() {
     const res = await authFetch(API + '/quiz', {
       method: 'POST', body: JSON.stringify(body),
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.detail || 'Failed to start quiz');
+      return;
+    }
     currentQuiz = await res.json();
     userAnswers = {};
 

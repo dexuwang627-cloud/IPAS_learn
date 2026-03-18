@@ -64,7 +64,9 @@ def test_exam_results_before_submit(client, populated_db, auth_headers):
         "num_choice": 1, "num_tf": 0, "num_multichoice": 0,
         "num_scenario": 0, "duration_min": 30,
     }, headers=auth_headers)
-    exam_id = start.json()["exam_id"]
+    start_data = start.json()
+    assert "exam_id" in start_data, f"Exam start failed: {start_data}"
+    exam_id = start_data["exam_id"]
 
     res = client.get(f"/api/v1/exam/{exam_id}/results", headers=auth_headers)
     assert res.status_code == 400

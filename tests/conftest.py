@@ -61,8 +61,15 @@ def _env_setup(tmp_path):
 
 @pytest.fixture
 def client():
-    """FastAPI TestClient."""
+    """FastAPI TestClient with rate limiter reset."""
     from main import app
+    # Walk middleware stack to find and clear rate limiter buckets
+    obj = getattr(app, 'middleware_stack', None)
+    while obj is not None:
+        if hasattr(obj, '_buckets'):
+            obj._buckets.clear()
+            break
+        obj = getattr(obj, 'app', None)
     return TestClient(app)
 
 
