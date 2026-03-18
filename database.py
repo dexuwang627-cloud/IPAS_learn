@@ -140,7 +140,7 @@ def get_chapters(bank_id: Optional[str] = None) -> list[str]:
         return _sqlite_get_chapters(bank_id)
 
     url = f"{REST_URL}/rpc/get_distinct_chapters"
-    payload = {}
+    payload = {"p_bank_id": None}
     if bank_id:
         _validate_bank_id(bank_id)
         payload["p_bank_id"] = bank_id
@@ -155,7 +155,7 @@ def get_stats(bank_id: Optional[str] = None) -> dict:
         return _sqlite_get_stats(bank_id)
 
     url = f"{REST_URL}/rpc/get_question_stats"
-    payload = {}
+    payload = {"p_bank_id": None}
     if bank_id:
         _validate_bank_id(bank_id)
         payload["p_bank_id"] = bank_id
