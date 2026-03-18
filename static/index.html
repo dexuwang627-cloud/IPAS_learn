@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/css/main.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 </head>
 <body>
 <canvas id="noise-canvas"></canvas>
@@ -52,6 +53,8 @@
   <div class="tabs">
     <div class="tab active" data-tab="quiz">測驗</div>
     <div class="tab" data-tab="weakness">弱點分析</div>
+    <div class="tab" data-tab="notebook">錯題本</div>
+    <div class="tab" data-tab="dashboard">數據</div>
     <div class="tab" data-tab="bank">題庫</div>
   </div>
 
@@ -125,6 +128,49 @@
     <div class="card" id="weakness-detail-card" class="hidden">
       <h2>// WRONG ANSWERS LOG</h2>
       <div id="weakness-log"></div>
+    </div>
+  </div>
+
+  <!-- Notebook Tab -->
+  <div id="tab-notebook" class="hidden">
+    <div class="card">
+      <h2>// WRONG ANSWER NOTEBOOK</h2>
+      <div id="notebook-stats" class="stats-row"></div>
+      <div class="notebook-filters" style="display:flex;gap:8px;margin:12px 0;">
+        <button class="notebook-filter-btn active" data-filter="all" onclick="filterNotebook('all')">All</button>
+        <button class="notebook-filter-btn" data-filter="bookmarked" onclick="filterNotebook('bookmarked')">Bookmarked</button>
+        <button class="notebook-filter-btn" data-filter="quiz" onclick="filterNotebook('quiz')">Quiz</button>
+        <button class="notebook-filter-btn" data-filter="exam" onclick="filterNotebook('exam')">Exam</button>
+        <div style="margin-left:auto;">
+          <select id="notebook-sort" onchange="sortNotebook(this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:12px;">
+            <option value="recent">Most Recent</option>
+            <option value="frequency">Most Wrong</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="btn-notebook-practice" onclick="startNotebookPractice()" style="margin-bottom:12px;">PRACTICE FROM NOTEBOOK</button>
+    </div>
+    <div id="notebook-list"></div>
+  </div>
+
+  <!-- Dashboard Tab -->
+  <div id="tab-dashboard" class="hidden">
+    <div class="card">
+      <h2>// LEARNING DASHBOARD</h2>
+      <div id="dashboard-summary" class="stats-row"></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <button class="granularity-btn active" data-granularity="day" onclick="toggleGranularity('day')">Day</button>
+        <button class="granularity-btn" data-granularity="week" onclick="toggleGranularity('week')">Week</button>
+      </div>
+      <div style="height:250px;"><canvas id="chart-accuracy"></canvas></div>
+    </div>
+    <div class="card">
+      <div style="height:200px;"><canvas id="chart-volume"></canvas></div>
+    </div>
+    <div class="card">
+      <div style="height:300px;"><canvas id="chart-chapters"></canvas></div>
     </div>
   </div>
 

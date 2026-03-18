@@ -5,6 +5,8 @@ import { startExam, submitExam, getExamState, viewExamResults } from './exam.js'
 import { renderWeakness, startWeaknessPractice } from './weakness.js';
 import { loadBank } from './bank.js';
 import { initSearchUI, doSearch } from './search.js';
+import { renderNotebook, toggleBookmark, removeFromNotebook, startNotebookPractice, filterNotebook, sortNotebook, notebookPage } from './notebook.js';
+import { renderDashboard, toggleGranularity } from './dashboard.js';
 import { authFetch } from './api.js';
 import { API } from './utils.js';
 
@@ -22,6 +24,13 @@ window.doLogout = doLogout;
 window.renderWeakness = renderWeakness;
 window.startWeaknessPractice = startWeaknessPractice;
 window.viewExamResults = viewExamResults;
+window.toggleBookmark = toggleBookmark;
+window.removeFromNotebook = removeFromNotebook;
+window.startNotebookPractice = startNotebookPractice;
+window.filterNotebook = filterNotebook;
+window.sortNotebook = sortNotebook;
+window.notebookPage = notebookPage;
+window.toggleGranularity = toggleGranularity;
 
 // Tab switching
 document.querySelectorAll('.tab').forEach(tab => {
@@ -33,6 +42,8 @@ document.querySelectorAll('.tab').forEach(tab => {
 
     if (tab.dataset.tab === 'bank') loadBank();
     if (tab.dataset.tab === 'weakness') renderWeakness();
+    if (tab.dataset.tab === 'notebook') renderNotebook();
+    if (tab.dataset.tab === 'dashboard') renderDashboard();
   });
 });
 

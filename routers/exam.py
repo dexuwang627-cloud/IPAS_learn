@@ -167,6 +167,35 @@ async def submit_exam(
         question_results=results,
     )
 
+    # Auto-save to quiz_history + notebook (best-effort)
+    try:
+        if results:
+            from database import save_history_batch
+            entries = [
+                {
+                    "user_id": user_id,
+                    "question_id": r["id"],
+                    "question_type": r["type"],
+                    "chapter": q_map.get(str(r["id"]), {}).get("chapter_group"),
+                    "content_preview": r["content"][:200] if r.get("content") else None,
+                    "is_correct": r["is_correct"],
+                    "user_answer": r["user_answer"],
+                    "correct_answer": r["correct_answer"],
+                }
+                for r in results
+            ]
+            save_history_batch(user_id, entries)
+    except Exception:
+        pass
+
+    try:
+        wrong_ids = [r["id"] for r in results if not r["is_correct"]]
+        if wrong_ids:
+            from database_notebook import upsert_wrong_answers
+            upsert_wrong_answers(user_id, wrong_ids, "exam")
+    except Exception:
+        pass
+
     return {
         "score": final_score,
         "base_score": base_score,

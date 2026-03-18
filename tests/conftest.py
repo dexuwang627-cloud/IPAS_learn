@@ -31,6 +31,8 @@ def _env_setup(tmp_path):
         "database.SUPABASE_KEY": "",
         "database._SQLITE_DB": db_path,
         "database.REST_URL": "",
+        "database_notebook._SQLITE_DB": db_path,
+        "database_dashboard._SQLITE_DB": db_path,
     }
     env_vars = {
         "SUPABASE_URL": "",
@@ -51,7 +53,14 @@ def _env_setup(tmp_path):
              patch("auth._ADMIN_EMAILS", {"admin@example.com"}):
 
             import database
+            import database_notebook
             database.init_db()
+            database.migrate_add_explanation()
+            database.migrate_add_multichoice_scenario()
+            database.migrate_add_bank_id()
+            database.migrate_add_quiz_history()
+            database.migrate_add_exam_sessions()
+            database_notebook.migrate_add_wrong_notebook()
 
             yield
 

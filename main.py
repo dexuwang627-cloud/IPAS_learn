@@ -21,6 +21,8 @@ from routers.config_routes import router as config_router
 from routers.history import router as history_router
 from routers.exam import router as exam_router
 from routers.search import router as search_router
+from routers.notebook import router as notebook_router
+from routers.dashboard import router as dashboard_router
 
 
 @asynccontextmanager
@@ -31,6 +33,8 @@ async def lifespan(app: FastAPI):
     migrate_add_bank_id()
     migrate_add_quiz_history()
     migrate_add_exam_sessions()
+    from database_notebook import migrate_add_wrong_notebook
+    migrate_add_wrong_notebook()
     try:
         from services.embedding_service import init_chroma
         init_chroma()
@@ -62,6 +66,8 @@ app.add_middleware(
         "/api/exam": 10,
         "/api/history": 30,
         "/api/questions/search": 30,
+        "/api/notebook": 30,
+        "/api/dashboard": 30,
     },
 )
 
@@ -72,6 +78,8 @@ app.include_router(quiz.router, prefix="/api/v1")
 app.include_router(history_router, prefix="/api/v1")
 app.include_router(exam_router, prefix="/api/v1")
 app.include_router(search_router, prefix="/api/v1")
+app.include_router(notebook_router, prefix="/api/v1")
+app.include_router(dashboard_router, prefix="/api/v1")
 
 # Deprecated: mount on /api for backward compat
 app.include_router(questions.router, prefix="/api", deprecated=True)

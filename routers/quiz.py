@@ -194,6 +194,16 @@ async def check_answers(sheet: AnswerSheet, user: dict = Depends(require_auth)):
     except Exception:
         pass  # history save failure must not break grading
 
+    # Auto-collect wrong answers to notebook (best-effort)
+    try:
+        if user_id and results:
+            wrong_ids = [r["id"] for r in results if not r["is_correct"]]
+            if wrong_ids:
+                from database_notebook import upsert_wrong_answers
+                upsert_wrong_answers(user_id, wrong_ids, "quiz")
+    except Exception:
+        pass
+
     return {
         "score": correct_count,
         "total": total,
