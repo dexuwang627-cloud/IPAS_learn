@@ -138,6 +138,11 @@ export async function submitQuiz() {
   const res = await authFetch(API + '/quiz/check', {
     method: 'POST', body: JSON.stringify({ answers: userAnswers }),
   });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    alert(err.detail || 'Failed to submit quiz');
+    return;
+  }
   const result = await res.json();
 
   saveHistory(result.results);

@@ -104,27 +104,37 @@ export async function submitExam() {
     method: 'POST',
     body: JSON.stringify({ answers: userAnswers, tab_switches: examState.tab_switches }),
   });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    alert(err.detail || 'Submission failed');
+    return;
+  }
   const result = await res.json();
 
-  const pct = result.percentage;
+  // Capture exam_id before nulling state; sanitize for safe attribute injection
+  const safeExamId = String(examState.exam_id).replace(/[^a-z0-9\-]/gi, '');
+
+  const pct = Number(result.percentage) || 0;
+  const score = Number(result.score) || 0;
+  const total = Number(result.total) || 0;
   const color = pct >= 60 ? 'var(--accent)' : 'var(--danger)';
   let penaltyHtml = '';
   if (result.penalty > 0) {
     penaltyHtml = `<div style="color:var(--danger);font-size:13px;margin-top:8px;">
-      Tab switch penalty: -${result.penalty} (${result.tab_switches} switches)
+      Tab switch penalty: -${Number(result.penalty)} (${Number(result.tab_switches)} switches)
     </div>`;
   }
 
   document.getElementById('quiz-result').innerHTML = `
     <div class="card score-card">
       <div class="score-big" style="color:${color}">${pct}%</div>
-      <div class="score-label">${result.score} / ${result.total} correct</div>
+      <div class="score-label">${score} / ${total} correct</div>
       ${penaltyHtml}
       <div class="score-bar"><div class="score-fill" style="width:${pct}%;background:${color}"></div></div>
       ${result.expired ? '<div style="color:var(--warn);margin-top:8px;">Time expired</div>' : ''}
       <div style="margin-top:20px;display:flex;gap:10px;justify-content:center;">
         <button class="btn btn-primary" onclick="resetQuiz()">RETRY</button>
-        <button class="btn btn-outline" onclick="viewExamResults('${examState.exam_id}')">VIEW DETAILS</button>
+        <button class="btn btn-outline" onclick="viewExamResults('${safeExamId}')">VIEW DETAILS</button>
       </div>
     </div>`;
   document.getElementById('quiz-result').classList.remove('hidden');

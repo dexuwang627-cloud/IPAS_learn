@@ -80,7 +80,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         client_ip = _get_real_ip(request)
         limit = self._get_limit(request.url.path)
-        bucket_key = f"{client_ip}:{request.url.path}"
+        normalized_path = self._normalize_path(request.url.path)
+        bucket_key = f"{client_ip}:{normalized_path}"
 
         async with self._lock:
             if self._is_rate_limited(bucket_key, limit):

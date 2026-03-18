@@ -647,8 +647,11 @@ def _sqlite_delete_question(question_id: int):
 def _sqlite_search_questions(query: str, limit: int, offset: int, bank_id: Optional[str]) -> tuple[list[dict], int]:
     conn = sqlite3.connect(_SQLITE_DB)
     conn.row_factory = sqlite3.Row
-    like = f"%{query}%"
-    where = "(content LIKE ? OR option_a LIKE ? OR option_b LIKE ? OR option_c LIKE ? OR option_d LIKE ? OR explanation LIKE ?)"
+    # Escape LIKE special characters to prevent unbounded wildcard scans
+    escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    like = f"%{escaped}%"
+    cols = ["content", "option_a", "option_b", "option_c", "option_d", "explanation"]
+    where = "(" + " OR ".join(f"{c} LIKE ? ESCAPE '\\'" for c in cols) + ")"
     params = [like] * 6
     if bank_id:
         _validate_bank_id(bank_id)

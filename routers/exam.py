@@ -126,6 +126,9 @@ async def submit_exam(
 
     expired = is_expired(session["started_at"], session["duration_min"])
 
+    # Use server-tracked tab_switches (authoritative), not client-provided value
+    server_tab_switches = session.get("tab_switches") or 0
+
     # Unshuffle answers to canonical form
     canonical_answers = unshuffle_answers(req.answers, session.get("shuffle_map") or {})
 
@@ -156,11 +159,11 @@ async def submit_exam(
 
     total = len(results)
     base_score = correct_count
-    final_score = calculate_penalty(req.tab_switches, base_score)
+    final_score = calculate_penalty(server_tab_switches, base_score)
 
     submit_exam_session(
         exam_id, user_id,
-        score=final_score, total=total, tab_switches=req.tab_switches,
+        score=final_score, total=total, tab_switches=server_tab_switches,
         question_results=results,
     )
 
@@ -169,7 +172,7 @@ async def submit_exam(
         "base_score": base_score,
         "total": total,
         "percentage": round(final_score / total * 100, 1) if total else 0,
-        "tab_switches": req.tab_switches,
+        "tab_switches": server_tab_switches,
         "penalty": base_score - final_score,
         "expired": expired,
         "results": results,
