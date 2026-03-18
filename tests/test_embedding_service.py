@@ -1,7 +1,7 @@
 import pytest
 import shutil
 import tempfile
-from services.embedding_service import init_chroma, add_question, find_similar, remove_question, _client_cache
+from services.embedding_service import init_chroma, add_question, find_similar, remove_question, _chroma_cache as _client_cache
 
 
 @pytest.fixture(autouse=True)

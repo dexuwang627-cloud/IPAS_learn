@@ -2,7 +2,7 @@ import pytest
 import os
 import shutil
 from database import init_db, insert_question, get_questions
-from services.embedding_service import init_chroma, _client_cache
+from services.embedding_service import init_chroma, _chroma_cache as _client_cache
 from services.question_generator import insert_question_with_dedup
 
 

@@ -8,7 +8,8 @@ import os
 from google import genai
 import chromadb
 
-_client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+_api_key = os.environ.get("GEMINI_API_KEY")
+_client = genai.Client(api_key=_api_key) if _api_key else None
 
 EMBED_MODEL = "gemini-embedding-001"
 DEFAULT_CHROMA_DIR = "data/chroma"
