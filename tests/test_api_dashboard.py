@@ -4,11 +4,11 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _make_test_user_pro():
-    """Dashboard chart endpoints require Pro tier, so add test user to an org."""
-    import database_org
-    database_org.migrate_add_org_tables()
-    org = database_org.create_org("DashOrg", seat_limit=10, created_by="admin")
-    database_org.add_member(org["id"], "test-user-00000000-0000-0000-0000-000000000001")
+    """Dashboard chart endpoints require Pro tier, so add test user via invite."""
+    import database_invite
+    database_invite.migrate_add_invite_tables()
+    inv = database_invite.create_invite(duration_days=30, max_uses=10, created_by="admin")
+    database_invite.redeem_invite(inv["code"], "test-user-00000000-0000-0000-0000-000000000001")
 
 
 def _build_history(client, auth_headers):

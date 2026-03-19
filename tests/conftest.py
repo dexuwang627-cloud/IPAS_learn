@@ -33,7 +33,7 @@ def _env_setup(tmp_path):
         "database.REST_URL": "",
         "database_notebook._SQLITE_DB": db_path,
         "database_dashboard._SQLITE_DB": db_path,
-        "database_org._SQLITE_DB": db_path,
+        "database_invite._SQLITE_DB": db_path,
     }
     env_vars = {
         "SUPABASE_URL": "",
@@ -62,8 +62,8 @@ def _env_setup(tmp_path):
             database.migrate_add_quiz_history()
             database.migrate_add_exam_sessions()
             database_notebook.migrate_add_wrong_notebook()
-            import database_org
-            database_org.migrate_add_org_tables()
+            import database_invite
+            database_invite.migrate_add_invite_tables()
 
             yield
 
