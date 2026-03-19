@@ -23,8 +23,8 @@ from routers.exam import router as exam_router
 from routers.search import router as search_router
 from routers.notebook import router as notebook_router
 from routers.dashboard import router as dashboard_router
-from routers.admin_org import router as admin_org_router
-from routers.user_org import router as user_org_router
+from routers.admin_invite import router as admin_invite_router
+from routers.user_invite import router as user_invite_router
 
 
 @asynccontextmanager
@@ -37,8 +37,8 @@ async def lifespan(app: FastAPI):
     migrate_add_exam_sessions()
     from database_notebook import migrate_add_wrong_notebook
     migrate_add_wrong_notebook()
-    from database_org import migrate_add_org_tables
-    migrate_add_org_tables()
+    from database_invite import migrate_add_invite_tables
+    migrate_add_invite_tables()
     try:
         from services.embedding_service import init_chroma
         init_chroma()
@@ -50,7 +50,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="iPAS 題庫系統",
-    version="1.0.0",
+    version="1.1.0",
     lifespan=lifespan,
     docs_url=None if IS_PRODUCTION else "/docs",
     redoc_url=None if IS_PRODUCTION else "/redoc",
@@ -72,9 +72,9 @@ app.add_middleware(
         "/api/questions/search": 30,
         "/api/notebook": 30,
         "/api/dashboard": 30,
-        "/api/org": 20,
-        "/api/me/org/join": 5,
-        "/api/me/org": 30,
+        "/api/invite": 20,
+        "/api/me/pro/redeem": 5,
+        "/api/me/pro": 30,
     },
 )
 
@@ -87,8 +87,8 @@ app.include_router(exam_router, prefix="/api/v1")
 app.include_router(search_router, prefix="/api/v1")
 app.include_router(notebook_router, prefix="/api/v1")
 app.include_router(dashboard_router, prefix="/api/v1")
-app.include_router(admin_org_router, prefix="/api/v1")
-app.include_router(user_org_router, prefix="/api/v1")
+app.include_router(admin_invite_router, prefix="/api/v1")
+app.include_router(user_invite_router, prefix="/api/v1")
 
 # Deprecated: mount on /api for backward compat
 app.include_router(questions.router, prefix="/api", deprecated=True)
@@ -110,3 +110,8 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 @app.get("/")
 async def root():
     return FileResponse(os.path.join(static_dir, "index.html"))
+
+
+@app.get("/admin")
+async def admin_page():
+    return FileResponse(os.path.join(static_dir, "admin.html"))
