@@ -19,10 +19,9 @@ export async function authFetch(url, options = {}) {
     const sb = getSupabaseClient();
     if (sb) {
       const { error } = await sb.auth.refreshSession();
-      if (error) { doLogout(); throw new Error('Session expired'); }
+      if (error) return res;
       const retryHeaders = await getAuthHeaders();
       const retry = await fetch(url, { ...options, headers: { ...retryHeaders, ...options.headers } });
-      if (retry.status === 401) { doLogout(); throw new Error('Session expired'); }
       return retry;
     }
   }

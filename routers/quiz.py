@@ -10,7 +10,7 @@ from database import get_questions, get_questions_by_ids, get_seen_ids, mark_see
 from auth import require_auth
 from fastapi import HTTPException
 from access_control import is_within_daily_limit, get_user_tier
-from database_org import increment_daily_usage
+from database_invite import increment_daily_usage
 
 try:
     from services.exam_builder import build_exam_pdf

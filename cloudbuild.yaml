@@ -1,0 +1,7 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '--no-cache', '-t', 'asia-east1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/ipas-quiz:latest', '.']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'asia-east1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/ipas-quiz:latest']
+images:
+  - 'asia-east1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/ipas-quiz:latest'

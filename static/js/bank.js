@@ -11,9 +11,11 @@ export async function loadBank() {
   if (type) params.set('q_type', type);
   params.set('limit', '100');
 
+  const list = document.getElementById('bank-list');
+  list.innerHTML = '<div class="card" style="text-align:center;padding:40px;"><span class="spinner"></span></div>';
+
   const res = await authFetch(API + '/questions?' + params);
   const data = await res.json();
-  const list = document.getElementById('bank-list');
 
   if (!data.questions || data.questions.length === 0) {
     list.innerHTML = '<div class="card" style="text-align:center;color:var(--text-muted)">No questions found</div>';

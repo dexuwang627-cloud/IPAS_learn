@@ -1,13 +1,13 @@
 import { initParticles } from './particles.js';
-import { initAuth, toggleAuthMode, doLogout } from './auth.js';
+import { initAuth, toggleAuthMode, doLogout, showForgotPassword, resetPassword } from './auth.js';
 import { startQuiz, submitQuiz, resetQuiz, selectAnswer } from './quiz.js';
 import { startExam, submitExam, getExamState, viewExamResults } from './exam.js';
 import { renderWeakness, startWeaknessPractice } from './weakness.js';
 import { loadBank } from './bank.js';
 import { initSearchUI, doSearch } from './search.js';
 import { renderNotebook, toggleBookmark, removeFromNotebook, startNotebookPractice, filterNotebook, sortNotebook, notebookPage } from './notebook.js';
-import { renderDashboard, toggleGranularity } from './dashboard.js';
-import { updateTierUI, showJoinModal, hideJoinModal, joinOrg, leaveOrg } from './org.js';
+import { renderDashboard, toggleGranularity, renderChapterProgress } from './dashboard.js';
+import { updateTierUI, showRedeemModal, hideRedeemModal, redeemCode } from './org.js';
 import { authFetch } from './api.js';
 import { API } from './utils.js';
 
@@ -32,10 +32,11 @@ window.filterNotebook = filterNotebook;
 window.sortNotebook = sortNotebook;
 window.notebookPage = notebookPage;
 window.toggleGranularity = toggleGranularity;
-window.showJoinModal = showJoinModal;
-window.hideJoinModal = hideJoinModal;
-window.joinOrg = joinOrg;
-window.leaveOrg = leaveOrg;
+window.showRedeemModal = showRedeemModal;
+window.hideRedeemModal = hideRedeemModal;
+window.redeemCode = redeemCode;
+window.showForgotPassword = showForgotPassword;
+window.resetPassword = resetPassword;
 
 // Tab switching
 document.querySelectorAll('.tab').forEach(tab => {
@@ -46,7 +47,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.getElementById('tab-' + tab.dataset.tab).classList.remove('hidden');
 
     if (tab.dataset.tab === 'bank') loadBank();
-    if (tab.dataset.tab === 'weakness') renderWeakness();
+    if (tab.dataset.tab === 'weakness') { renderWeakness(); renderChapterProgress(); }
     if (tab.dataset.tab === 'notebook') renderNotebook();
     if (tab.dataset.tab === 'dashboard') renderDashboard();
   });

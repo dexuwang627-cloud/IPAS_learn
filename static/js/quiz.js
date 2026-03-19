@@ -136,10 +136,14 @@ export function selectAnswer(qid, val, el, qType) {
 
 export async function submitQuiz() {
   if (Object.keys(userAnswers).length === 0) {
-    alert('\u8ACB\u81F3\u5C11\u4F5C\u7B54\u4E00\u984C');
+    alert('請至少作答一題');
     return;
   }
 
+  const submitBtn = document.querySelector('#quiz-area .btn-primary');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<span class="spinner"></span> GRADING...'; }
+
+  try {
   const res = await authFetch(API + '/quiz/check', {
     method: 'POST', body: JSON.stringify({ answers: userAnswers }),
   });
@@ -224,9 +228,19 @@ export async function submitQuiz() {
       card.appendChild(sim);
     }
   });
+
+  } finally {
+    const submitBtn = document.querySelector('#quiz-area .btn-primary');
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'SUBMIT'; }
+  }
 }
 
 export function resetQuiz() {
+  // Skip confirm if results already shown (user is done)
+  const resultShown = !document.getElementById('quiz-result').classList.contains('hidden');
+  if (!resultShown && Object.keys(userAnswers).length > 0) {
+    if (!confirm('確定要重設測驗嗎？所有作答將會清除。')) return;
+  }
   const examSt = getExamState();
   if (examSt) {
     clearExamState();

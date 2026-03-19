@@ -41,6 +41,13 @@ def get_chapter_accuracy(user_id: str) -> list[dict]:
     return _supabase_get_chapter_accuracy(user_id)
 
 
+def get_chapter_progress(user_id: str) -> list[dict]:
+    """Per-chapter progress: bank total, user attempted (distinct questions), correct rate."""
+    if not _is_supabase():
+        return _sqlite_get_chapter_progress(user_id)
+    return _supabase_get_chapter_progress(user_id)
+
+
 def get_dashboard_summary(user_id: str) -> dict:
     """Get combined dashboard summary stats."""
     if not _is_supabase():
@@ -215,6 +222,50 @@ def _calculate_streaks(dates_desc: list[str]) -> tuple[int, int]:
     return current, best
 
 
+def _sqlite_get_chapter_progress(user_id: str) -> list[dict]:
+    conn = sqlite3.connect(_SQLITE_DB)
+    # Total questions per chapter in the bank
+    bank = conn.execute("""
+        SELECT chapter_group, COUNT(*) as total
+        FROM questions
+        WHERE chapter_group IS NOT NULL
+        GROUP BY chapter_group
+        ORDER BY chapter_group
+    """).fetchall()
+    bank_map = {r[0]: r[1] for r in bank}
+
+    # User's per-chapter stats (distinct questions attempted)
+    user_stats = conn.execute("""
+        SELECT chapter,
+               COUNT(DISTINCT question_id) as attempted,
+               SUM(CASE WHEN is_correct THEN 1 ELSE 0 END) as correct,
+               COUNT(*) as total_answers
+        FROM quiz_history
+        WHERE user_id = ? AND chapter IS NOT NULL
+        GROUP BY chapter
+    """, (user_id,)).fetchall()
+    conn.close()
+
+    user_map = {}
+    for r in user_stats:
+        user_map[r[0]] = {"attempted": r[1], "correct": r[2], "total_answers": r[3]}
+
+    result = []
+    for chapter in sorted(bank_map.keys()):
+        total_in_bank = bank_map[chapter]
+        u = user_map.get(chapter, {"attempted": 0, "correct": 0, "total_answers": 0})
+        result.append({
+            "chapter": chapter,
+            "total_in_bank": total_in_bank,
+            "attempted": u["attempted"],
+            "correct": u["correct"],
+            "total_answers": u["total_answers"],
+            "coverage": round(u["attempted"] / total_in_bank * 100, 1) if total_in_bank > 0 else 0,
+            "accuracy": round(u["correct"] / u["total_answers"] * 100, 1) if u["total_answers"] > 0 else 0,
+        })
+    return result
+
+
 # ========== Supabase Implementation ==========
 
 def _supabase_get_accuracy_trend(
@@ -330,3 +381,49 @@ def _supabase_get_dashboard_summary(user_id: str) -> dict:  # pragma: no cover
         "wrong_notebook_count": 0,
         "bookmarked_count": 0,
     }
+
+
+def _supabase_get_chapter_progress(user_id: str) -> list[dict]:  # pragma: no cover
+    """Fetch bank totals + user history, aggregate in Python."""
+    from database import get_stats
+    stats = get_stats()
+    bank_map = stats.get("by_chapter", {})
+
+    safe_uid = _safe_filter_value(user_id)
+    try:
+        resp = _supabase_request("get", (
+            f"{REST_URL}/quiz_history"
+            f"?user_id=eq.{safe_uid}&chapter=not.is.null"
+            f"&select=chapter,question_id,is_correct"
+        ), headers=_headers)
+        rows = resp.json()
+    except RuntimeError:
+        rows = []
+
+    user_map: dict[str, dict] = {}
+    for r in rows:
+        ch = r["chapter"]
+        if ch not in user_map:
+            user_map[ch] = {"questions": set(), "correct": 0, "total_answers": 0}
+        user_map[ch]["questions"].add(r["question_id"])
+        user_map[ch]["total_answers"] += 1
+        if r["is_correct"]:
+            user_map[ch]["correct"] += 1
+
+    result = []
+    for chapter in sorted(bank_map.keys()):
+        total_in_bank = bank_map[chapter]
+        u = user_map.get(chapter)
+        attempted = len(u["questions"]) if u else 0
+        correct = u["correct"] if u else 0
+        total_answers = u["total_answers"] if u else 0
+        result.append({
+            "chapter": chapter,
+            "total_in_bank": total_in_bank,
+            "attempted": attempted,
+            "correct": correct,
+            "total_answers": total_answers,
+            "coverage": round(attempted / total_in_bank * 100, 1) if total_in_bank > 0 else 0,
+            "accuracy": round(correct / total_answers * 100, 1) if total_answers > 0 else 0,
+        })
+    return result

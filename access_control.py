@@ -2,23 +2,23 @@
 Access control layer -- tier resolution and feature gating.
 
 Users belong to either "free" or "pro" tier:
-- free: no active org membership, limited daily questions (5/day)
-- pro: active org membership with seat, unlimited access
+- free: no active pro subscription, limited daily questions (10/day)
+- pro: redeemed invite code with unexpired subscription, unlimited access
 """
 import logging
 from typing import Optional
 
-from database_org import get_user_org, check_daily_limit, get_daily_usage
+from database_invite import get_user_pro, check_daily_limit, get_daily_usage
 
 logger = logging.getLogger(__name__)
 
-FREE_DAILY_LIMIT = 5
+FREE_DAILY_LIMIT = 10
 
 
 def get_user_tier(user_id: str) -> str:
-    """Resolve user tier: 'pro' if in an active org, otherwise 'free'."""
-    org_info = get_user_org(user_id)
-    if org_info and org_info.get("is_active"):
+    """Resolve user tier: 'pro' if has active subscription, otherwise 'free'."""
+    pro = get_user_pro(user_id)
+    if pro:
         return "pro"
     return "free"
 

@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iPAS Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/main.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  .admin-tabs { display:flex; gap:2px; margin-bottom:24px; background:var(--surface); border-radius:var(--radius); padding:3px; border:1px solid var(--border); }
+  .admin-tab { flex:1; padding:10px 0; text-align:center; cursor:pointer; font-size:13px; font-weight:500; color:var(--text-dim); border-radius:6px; transition:all 0.2s; font-family:var(--mono); }
+  .admin-tab:hover { color:var(--text); }
+  .admin-tab.active { background:var(--accent-dim); color:var(--accent); box-shadow:0 0 12px var(--accent-glow); }
+  .invite-row { display:flex; align-items:center; gap:12px; padding:14px 16px; border:1px solid var(--border); border-radius:var(--radius); margin-bottom:8px; background:var(--surface); transition:border-color 0.2s; }
+  .invite-row:hover { border-color:var(--border-hl); }
+  .invite-row.inactive { opacity:0.5; }
+  .invite-code { font-family:var(--mono); font-size:16px; font-weight:700; color:var(--accent); letter-spacing:2px; min-width:120px; cursor:pointer; }
+  .invite-code:hover { text-decoration:underline; }
+  .invite-meta { flex:1; font-size:12px; color:var(--text-dim); display:flex; flex-direction:column; gap:2px; }
+  .invite-meta span { font-family:var(--mono); }
+  .invite-usage { font-family:var(--mono); font-size:13px; font-weight:600; min-width:60px; text-align:center; }
+  .usage-ok { color:var(--accent); }
+  .usage-full { color:var(--danger); }
+  .invite-actions { display:flex; gap:6px; }
+  .pro-row { display:flex; align-items:center; gap:12px; padding:12px 16px; border:1px solid var(--border); border-radius:var(--radius); margin-bottom:6px; background:var(--surface); }
+  .pro-row.expired { opacity:0.45; }
+  .pro-uid { font-family:var(--mono); font-size:11px; color:var(--text-dim); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pro-code { font-family:var(--mono); font-size:12px; color:var(--accent); min-width:100px; }
+  .pro-dates { font-family:var(--mono); font-size:11px; color:var(--text-dim); min-width:180px; }
+  .pro-status-badge { font-family:var(--mono); font-size:10px; padding:2px 8px; border-radius:4px; font-weight:700; letter-spacing:0.5px; }
+  .pro-active { background:var(--accent-dim); color:var(--accent); border:1px solid var(--accent); }
+  .pro-expired-badge { background:var(--surface-2); color:var(--text-muted); border:1px solid var(--border); }
+  .create-form { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
+  .create-form > div { flex:1; min-width:120px; }
+  .filter-bar { display:flex; gap:8px; margin-bottom:16px; }
+  .filter-btn { padding:6px 14px; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--text-muted); font-size:12px; font-family:var(--mono); cursor:pointer; transition:all 0.2s; }
+  .filter-btn.active, .filter-btn:hover { border-color:var(--accent); color:var(--accent); }
+  .empty-state { text-align:center; padding:40px; color:var(--text-muted); font-size:14px; }
+  .redemption-list { margin-top:8px; padding:8px 12px; background:var(--surface-2); border-radius:6px; }
+  .redemption-item { font-family:var(--mono); font-size:11px; color:var(--text-dim); padding:4px 0; border-bottom:1px solid var(--border); }
+  .redemption-item:last-child { border-bottom:none; }
+  .toast { position:fixed; top:20px; right:20px; padding:12px 20px; border-radius:var(--radius); font-family:var(--mono); font-size:13px; z-index:999; animation:slideIn 0.3s ease; }
+  .toast-success { background:var(--accent-dim); color:var(--accent); border:1px solid var(--accent); }
+  .toast-error { background:#7f1d1d; color:#fca5a5; border:1px solid var(--danger); }
+  @keyframes slideIn { from { transform:translateX(100px); opacity:0; } to { transform:translateX(0); opacity:1; } }
+  @media (max-width:600px) {
+    .invite-row { flex-wrap:wrap; gap:8px; }
+    .invite-code { min-width:auto; }
+    .create-form { flex-direction:column; }
+    .pro-row { flex-wrap:wrap; gap:6px; }
+    .pro-dates { min-width:auto; }
+  }
+</style>
+</head>
+<body>
+<canvas id="noise-canvas"></canvas>
+
+<div class="app-wrapper">
+  <header>
+    <h1>iPAS <span>//</span> ADMIN</h1>
+    <p>Management Console</p>
+  </header>
+
+  <!-- Auth -->
+  <div id="auth-screen" class="auth-screen hidden">
+    <div class="card">
+      <h2>// ADMIN LOGIN</h2>
+      <div id="auth-error" class="auth-error"></div>
+      <p style="text-align:center;color:var(--text-muted);font-size:13px;margin-bottom:16px;">Admin access only</p>
+      <button class="btn btn-outline btn-block" id="btn-google" type="button" style="gap:8px;">
+        <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+        Google Login
+      </button>
+    </div>
+  </div>
+
+  <!-- Not Admin -->
+  <div id="not-admin" class="hidden">
+    <div class="card" style="text-align:center;">
+      <h2>// ACCESS DENIED</h2>
+      <p style="color:var(--text-muted);margin-bottom:16px;">This account does not have admin privileges.</p>
+      <button class="btn btn-outline" onclick="window.location.href='/'">Back to App</button>
+    </div>
+  </div>
+
+  <!-- Admin Panel -->
+  <div id="admin-panel" class="hidden">
+    <div id="admin-user-bar" class="user-bar">
+      <span class="user-email" id="admin-email"></span>
+      <span class="tier-badge tier-pro">ADMIN</span>
+      <button class="btn-sm btn-outline" onclick="window.location.href='/'" style="font-size:11px;padding:4px 10px;">Back to App</button>
+      <button class="btn-logout" id="btn-logout" type="button">LOGOUT</button>
+    </div>
+
+    <div class="admin-tabs">
+      <div class="admin-tab active" data-tab="invites" onclick="switchTab('invites')">Invite Codes</div>
+      <div class="admin-tab" data-tab="users" onclick="switchTab('users')">Pro Users</div>
+    </div>
+
+    <!-- Invites Tab -->
+    <div id="tab-invites">
+      <div class="card">
+        <h2>// CREATE INVITE CODE</h2>
+        <div class="create-form">
+          <div>
+            <label>Duration (days)</label>
+            <input type="number" id="inp-days" value="90" min="1" max="3650">
+          </div>
+          <div>
+            <label>Max Uses</label>
+            <input type="number" id="inp-uses" value="1" min="1" max="10000">
+          </div>
+          <div>
+            <label>Label (optional)</label>
+            <input type="text" id="inp-label" placeholder="e.g. Spring 2026" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--bg);color:var(--text);outline:none;">
+          </div>
+          <div style="display:flex;align-items:flex-end;">
+            <button class="btn btn-primary" onclick="createInvite()">CREATE</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>// INVITE CODES</h2>
+        <div id="invites-list"></div>
+      </div>
+    </div>
+
+    <!-- Users Tab -->
+    <div id="tab-users" class="hidden">
+      <div class="card">
+        <h2>// PRO USERS</h2>
+        <div class="filter-bar">
+          <button class="filter-btn active" data-filter="all" onclick="filterUsers('all')">All</button>
+          <button class="filter-btn" data-filter="active" onclick="filterUsers('active')">Active</button>
+          <button class="filter-btn" data-filter="expired" onclick="filterUsers('expired')">Expired</button>
+        </div>
+        <div id="users-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initParticles } from '/static/js/particles.js';
+initParticles('noise-canvas');
+
+const API = '/api/v1';
+let sb = null;
+let token = null;
+let userFilter = 'all';
+
+// ── Auth ──
+async function boot() {
+  try {
+    const res = await fetch(API + '/config');
+    const cfg = await res.json();
+    const lib = window.supabase;
+    if (lib && lib.createClient && cfg.supabase_url && cfg.supabase_key) {
+      sb = lib.createClient(cfg.supabase_url, cfg.supabase_key, {
+        auth: { flowType: 'implicit', detectSessionInUrl: true, persistSession: true, autoRefreshToken: true }
+      });
+    }
+  } catch {}
+
+  document.getElementById('btn-google').addEventListener('click', googleLogin);
+  document.getElementById('btn-logout').addEventListener('click', doLogout);
+
+  if (sb) {
+    sb.auth.onAuthStateChange((ev, session) => {
+      if (ev === 'SIGNED_OUT') { showAuth(); return; }
+      if (session?.user) checkAdmin(session);
+    });
+    const { data } = await sb.auth.getSession();
+    if (!data.session) showAuth();
+  } else {
+    showAuth();
+  }
+}
+
+function showAuth() {
+  document.getElementById('auth-screen').classList.remove('hidden');
+  document.getElementById('admin-panel').classList.add('hidden');
+  document.getElementById('not-admin').classList.add('hidden');
+}
+
+async function googleLogin() {
+  if (!sb) return;
+  await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.origin + '/admin' }
+  });
+}
+
+async function doLogout() {
+  if (sb) await sb.auth.signOut();
+  showAuth();
+}
+
+async function checkAdmin(session) {
+  token = session.access_token;
+  document.getElementById('auth-screen').classList.add('hidden');
+
+  // Verify admin by calling an admin endpoint
+  try {
+    const res = await apiFetch(API + '/invite');
+    if (res.status === 403) {
+      document.getElementById('not-admin').classList.remove('hidden');
+      document.getElementById('admin-panel').classList.add('hidden');
+      return;
+    }
+    if (!res.ok) throw new Error();
+  } catch {
+    document.getElementById('not-admin').classList.remove('hidden');
+    return;
+  }
+
+  document.getElementById('admin-email').textContent = session.user.email;
+  document.getElementById('admin-panel').classList.remove('hidden');
+  document.getElementById('not-admin').classList.add('hidden');
+  loadInvites();
+}
+
+function apiFetch(url, opts = {}) {
+  return fetch(url, {
+    ...opts,
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'Content-Type': 'application/json',
+      ...(opts.headers || {}),
+    },
+  });
+}
+
+// ── Tabs ──
+window.switchTab = function(tab) {
+  document.querySelectorAll('.admin-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.getElementById('tab-invites').classList.toggle('hidden', tab !== 'invites');
+  document.getElementById('tab-users').classList.toggle('hidden', tab !== 'users');
+  if (tab === 'users') loadUsers();
+  if (tab === 'invites') loadInvites();
+};
+
+// ── Helpers ──
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ── Invites ──
+async function loadInvites() {
+  const el = document.getElementById('invites-list');
+  el.innerHTML = '<div class="empty-state"><span class="spinner"></span></div>';
+  try {
+    const res = await apiFetch(API + '/invite');
+    const invites = await res.json();
+    if (!invites.length) { el.innerHTML = '<div class="empty-state">No invite codes yet</div>'; return; }
+    el.innerHTML = invites.map(inv => {
+      const active = inv.is_active;
+      const full = inv.used_count >= inv.max_uses;
+      const date = new Date(inv.created_at).toLocaleDateString('zh-TW');
+      return `
+        <div class="invite-row ${active ? '' : 'inactive'}">
+          <span class="invite-code" title="Click to copy" onclick="copyCode('${esc(inv.code)}')">${esc(inv.code)}</span>
+          <div class="invite-meta">
+            <span>${inv.duration_days}d | ${esc(inv.label || '-')} | ${date}</span>
+          </div>
+          <span class="invite-usage ${full ? 'usage-full' : 'usage-ok'}">${inv.used_count}/${inv.max_uses}</span>
+          <div class="invite-actions">
+            <button class="btn-sm btn-outline" onclick="toggleRedemptions(${inv.id}, this)">Details</button>
+            ${active ? `<button class="btn-sm btn-danger" onclick="deactivateInvite(${inv.id})">Stop</button>` : '<span class="badge" style="background:var(--surface-2);color:var(--text-muted);">INACTIVE</span>'}
+          </div>
+        </div>
+        <div id="redemptions-${inv.id}" class="hidden"></div>
+      `;
+    }).join('');
+  } catch {
+    el.innerHTML = '<div class="empty-state" style="color:var(--danger);">Failed to load</div>';
+  }
+}
+
+window.createInvite = async function() {
+  const days = parseInt(document.getElementById('inp-days').value);
+  const uses = parseInt(document.getElementById('inp-uses').value);
+  const label = document.getElementById('inp-label').value.trim() || null;
+  if (!days || days < 1 || !uses || uses < 1) { toast('Invalid input', 'error'); return; }
+  try {
+    const res = await apiFetch(API + '/invite', {
+      method: 'POST',
+      body: JSON.stringify({ duration_days: days, max_uses: uses, label }),
+    });
+    if (!res.ok) { const d = await res.json(); toast(d.detail || 'Failed', 'error'); return; }
+    const inv = await res.json();
+    toast('Created: ' + inv.code, 'success');
+    document.getElementById('inp-label').value = '';
+    loadInvites();
+  } catch { toast('Network error', 'error'); }
+};
+
+window.deactivateInvite = async function(id) {
+  if (!confirm('Deactivate this invite code?')) return;
+  try {
+    const res = await apiFetch(API + '/invite/' + id, { method: 'DELETE' });
+    if (!res.ok) { toast('Failed to deactivate', 'error'); return; }
+    toast('Deactivated', 'success');
+    loadInvites();
+  } catch { toast('Network error', 'error'); }
+};
+
+window.toggleRedemptions = async function(id, btn) {
+  const el = document.getElementById('redemptions-' + id);
+  if (!el.classList.contains('hidden')) { el.classList.add('hidden'); return; }
+  el.innerHTML = '<div class="redemption-list"><span class="spinner"></span></div>';
+  el.classList.remove('hidden');
+  try {
+    const res = await apiFetch(API + '/invite/' + id + '/redemptions');
+    const data = await res.json();
+    if (!data.redemptions.length) { el.innerHTML = '<div class="redemption-list"><span style="font-size:12px;color:var(--text-muted);">No redemptions yet</span></div>'; return; }
+    el.innerHTML = '<div class="redemption-list">' + data.redemptions.map(r => {
+      const act = new Date(r.activated_at).toLocaleDateString('zh-TW');
+      const exp = new Date(r.expires_at).toLocaleDateString('zh-TW');
+      const isExp = new Date(r.expires_at) < new Date();
+      return `<div class="redemption-item">${esc(r.user_id.substring(0, 8))}... | ${act} ~ ${exp} ${isExp ? '(expired)' : ''}</div>`;
+    }).join('') + '</div>';
+  } catch { el.innerHTML = '<div class="redemption-list" style="color:var(--danger);">Failed</div>'; }
+};
+
+window.copyCode = function(code) {
+  navigator.clipboard.writeText(code).then(() => toast('Copied: ' + code, 'success'));
+};
+
+// ── Users ──
+let _usersCache = [];
+
+async function loadUsers() {
+  const el = document.getElementById('users-list');
+  el.innerHTML = '<div class="empty-state"><span class="spinner"></span></div>';
+  try {
+    const res = await apiFetch(API + '/invite/pro-users');
+    _usersCache = await res.json();
+    renderUsers();
+  } catch {
+    el.innerHTML = '<div class="empty-state" style="color:var(--danger);">Failed to load</div>';
+  }
+}
+
+function renderUsers() {
+  const el = document.getElementById('users-list');
+  let list = _usersCache;
+  if (userFilter === 'active') list = list.filter(u => !u.is_expired);
+  if (userFilter === 'expired') list = list.filter(u => u.is_expired);
+
+  if (!list.length) { el.innerHTML = '<div class="empty-state">No users found</div>'; return; }
+
+  el.innerHTML = list.map(u => {
+    const act = new Date(u.activated_at).toLocaleDateString('zh-TW');
+    const exp = new Date(u.expires_at).toLocaleDateString('zh-TW');
+    return `
+      <div class="pro-row ${u.is_expired ? 'expired' : ''}">
+        <span class="pro-uid" title="${esc(u.user_id)}">${esc(u.user_id.substring(0, 12))}...</span>
+        <span class="pro-code">${esc(u.code || '-')}</span>
+        <span class="pro-dates">${act} ~ ${exp}</span>
+        <span class="pro-status-badge ${u.is_expired ? 'pro-expired-badge' : 'pro-active'}">${u.is_expired ? 'EXPIRED' : 'ACTIVE'}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+window.filterUsers = function(f) {
+  userFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === f));
+  renderUsers();
+};
+
+// ── Toast ──
+function toast(msg, type) {
+  const t = document.createElement('div');
+  t.className = 'toast toast-' + type;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; }, 2500);
+  setTimeout(() => t.remove(), 3000);
+}
+
+boot();
+</script>
+</body>
+</html>

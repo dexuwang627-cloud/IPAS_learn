@@ -8,6 +8,7 @@ from database_dashboard import (
     get_daily_volume,
     get_chapter_accuracy,
     get_dashboard_summary,
+    get_chapter_progress,
 )
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -51,3 +52,9 @@ async def chapter_accuracy(user: dict = Depends(_require_dashboard_full)):
 async def summary(user: dict = Depends(require_auth)):
     """Get combined dashboard summary stats."""
     return get_dashboard_summary(user["sub"])
+
+
+@router.get("/chapter-progress")
+async def chapter_progress(user: dict = Depends(require_auth)):
+    """Get per-chapter progress: total questions in bank vs user attempted/correct."""
+    return {"data": get_chapter_progress(user["sub"])}

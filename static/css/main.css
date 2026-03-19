@@ -413,7 +413,7 @@ select {
   font-family: var(--mono);
   font-size: 12px;
   padding: 8px;
-  background: var(--surface2, rgba(0,0,0,0.2));
+  background: var(--surface-2);
   border-radius: 6px;
 }
 .bookmark-btn {
@@ -472,7 +472,7 @@ select {
   min-width: 80px;
   text-align: center;
   padding: 12px 8px;
-  background: var(--surface2, rgba(0,0,0,0.2));
+  background: var(--surface-2);
   border-radius: var(--radius);
   border: 1px solid var(--border);
 }
@@ -576,4 +576,10 @@ select {
 .modal-card {
   max-width: 400px;
   width: 90%;
+}
+
+/* Toast animation */
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
 }

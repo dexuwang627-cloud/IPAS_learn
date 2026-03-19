@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.prod.txt .
 RUN pip install --no-cache-dir -r requirements.prod.txt
 
-COPY main.py database.py auth.py middleware.py config.py ./
+COPY main.py database.py database_notebook.py database_dashboard.py database_invite.py access_control.py auth.py middleware.py config.py ./
 COPY routers/ routers/
 COPY services/ services/
 COPY static/ static/

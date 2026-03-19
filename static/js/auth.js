@@ -12,7 +12,14 @@ export async function initAuth(onReady) {
     const cfg = await res.json();
     const lib = window.supabase;
     if (lib && lib.createClient && cfg.supabase_url && cfg.supabase_key) {
-      sb = lib.createClient(cfg.supabase_url, cfg.supabase_key);
+      sb = lib.createClient(cfg.supabase_url, cfg.supabase_key, {
+        auth: {
+          flowType: 'implicit',
+          detectSessionInUrl: true,
+          persistSession: true,
+          autoRefreshToken: true,
+        }
+      });
     }
   } catch (e) {
     const el = document.getElementById('auth-error');
@@ -132,3 +139,73 @@ export async function doLogout() {
   document.getElementById('main-app').classList.add('hidden');
   document.getElementById('auth-screen').classList.remove('hidden');
 }
+
+export function showForgotPassword() {
+  const title = document.getElementById('auth-title');
+  const btn = document.getElementById('btn-auth');
+  const pw = document.getElementById('auth-password');
+  const toggle = document.getElementById('auth-toggle');
+  const forgot = document.getElementById('forgot-link');
+  const errEl = document.getElementById('auth-error');
+  const succEl = document.getElementById('auth-success');
+
+  errEl.style.display = 'none';
+  succEl.style.display = 'none';
+
+  authMode = 'forgot';
+  title.textContent = '// RESET PASSWORD';
+  btn.textContent = 'SEND RESET EMAIL';
+  pw.classList.add('hidden');
+  forgot.classList.add('hidden');
+  toggle.innerHTML = '<a onclick="backToLogin()">Back to login</a>';
+
+  btn.removeEventListener('click', handleAuth);
+  btn.addEventListener('click', resetPassword);
+}
+
+export async function resetPassword() {
+  const email = document.getElementById('auth-email').value.trim();
+  const btn = document.getElementById('btn-auth');
+  const errEl = document.getElementById('auth-error');
+  const succEl = document.getElementById('auth-success');
+  errEl.style.display = 'none';
+  succEl.style.display = 'none';
+
+  if (!sb) { showAuthError('System init failed'); return; }
+  if (!email) { showAuthError('Please enter your email'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+
+  try {
+    const { error } = await sb.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/',
+    });
+    if (error) throw error;
+    succEl.textContent = 'Reset email sent! Check your inbox.';
+    succEl.style.display = 'block';
+  } catch (e) {
+    showAuthError(e.message || 'Failed to send reset email');
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'SEND RESET EMAIL';
+}
+
+window.backToLogin = function() {
+  const btn = document.getElementById('btn-auth');
+  const pw = document.getElementById('auth-password');
+  const forgot = document.getElementById('forgot-link');
+
+  btn.removeEventListener('click', resetPassword);
+  btn.addEventListener('click', handleAuth);
+  pw.classList.remove('hidden');
+  forgot.classList.remove('hidden');
+
+  authMode = 'login';
+  document.getElementById('auth-title').textContent = '// LOGIN';
+  btn.textContent = 'LOGIN';
+  document.getElementById('auth-toggle').innerHTML = '<a onclick="toggleAuthMode()">註冊</a>';
+  document.getElementById('auth-error').style.display = 'none';
+  document.getElementById('auth-success').style.display = 'none';
+};

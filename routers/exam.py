@@ -16,7 +16,7 @@ from services.exam_service import (
     shuffle_questions, unshuffle_answers, is_expired, calculate_penalty,
 )
 from access_control import is_within_daily_limit, get_user_tier
-from database_org import increment_daily_usage
+from database_invite import increment_daily_usage
 
 router = APIRouter(tags=["Exam"])
 
