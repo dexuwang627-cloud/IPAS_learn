@@ -1,18 +1,28 @@
 """
-隨機測驗路由 — 支援單選、複選、情境題 + 避免重複 + 類題推薦
+隨機測驗路由 -- 支援單選、複選、情境題 + Supabase session 持久化
 """
-from fastapi import APIRouter, Query
+import uuid
+from fastapi import APIRouter, Query, Depends
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from typing import Optional
-from database import get_questions
-from services.exam_builder import build_exam_pdf
-from services.embedding_service import find_similar
+from database import get_questions, get_questions_by_ids, get_seen_ids, mark_seen, reset_session, save_history_batch, get_weakness_stats
+from auth import require_auth
+from fastapi import HTTPException
+from access_control import is_within_daily_limit, get_user_tier
+from database_invite import increment_daily_usage
+
+try:
+    from services.exam_builder import build_exam_pdf
+except ImportError:
+    build_exam_pdf = None
+
+try:
+    from services.embedding_service import find_similar
+except ImportError:
+    find_similar = None
 
 router = APIRouter(tags=["隨機測驗"])
-
-_sessions: dict[str, set[int]] = {}
-MAX_SESSIONS = 500
 
 
 class QuizRequest(BaseModel):
@@ -23,29 +33,14 @@ class QuizRequest(BaseModel):
     num_multichoice: int = Field(0, ge=0, le=20, description="複選題數量")
     num_tf: int = Field(5, ge=0, le=30, description="是非題數量")
     num_scenario: int = Field(0, ge=0, le=10, description="情境題組數量")
+    bank_id: Optional[str] = Field(None, description="題庫 ID")
 
 
 class AnswerSheet(BaseModel):
     session_id: Optional[str] = Field(None, description="學習 session ID")
     answers: dict[str, str] = Field(
-        ..., description="題目 ID → 使用者作答，例如 {'1': 'A', '5': 'T', '10': 'AC'}"
+        ..., description="題目 ID -> 使用者作答，例如 {'1': 'A', '5': 'T', '10': 'AC'}"
     )
-
-
-def _get_seen(session_id: Optional[str]) -> set[int]:
-    if not session_id:
-        return set()
-    return _sessions.get(session_id, set())
-
-
-def _mark_seen(session_id: Optional[str], question_ids: list[int]):
-    if not session_id:
-        return
-    if len(_sessions) >= MAX_SESSIONS:
-        oldest = next(iter(_sessions))
-        del _sessions[oldest]
-    seen = _sessions.setdefault(session_id, set())
-    seen.update(question_ids)
 
 
 def _check_answer(user_answer: str, correct_answer: str, q_type: str) -> bool:
@@ -54,7 +49,6 @@ def _check_answer(user_answer: str, correct_answer: str, q_type: str) -> bool:
     correct = correct_answer.strip().upper()
 
     if q_type in ("multichoice", "scenario_multichoice"):
-        # 複選題：排序後比較
         return "".join(sorted(user)) == "".join(sorted(correct))
     else:
         return user == correct
@@ -62,7 +56,7 @@ def _check_answer(user_answer: str, correct_answer: str, q_type: str) -> bool:
 
 def _fetch_questions_by_types(req: QuizRequest, exclude: list[int] | None):
     """依題型分別抽取題目"""
-    common = dict(chapter=req.chapter, difficulty=req.difficulty, exclude_ids=exclude)
+    common = dict(chapter=req.chapter, difficulty=req.difficulty, exclude_ids=exclude, bank_id=req.bank_id)
 
     questions = []
 
@@ -76,11 +70,9 @@ def _fetch_questions_by_types(req: QuizRequest, exclude: list[int] | None):
         questions.extend(get_questions(q_type="truefalse", limit=req.num_tf, **common))
 
     if req.num_scenario > 0:
-        # 情境題：先抓不重複的 scenario_id，再拉整組
         scenario_qs = get_questions(q_type="scenario_choice", limit=req.num_scenario * 3, **common)
         scenario_qs += get_questions(q_type="scenario_multichoice", limit=req.num_scenario * 2, **common)
 
-        # 按 scenario_id 分組，取前 N 組
         groups: dict[str, list] = {}
         for q in scenario_qs:
             sid = q.get("scenario_id") or f"standalone_{q['id']}"
@@ -97,41 +89,57 @@ def _fetch_questions_by_types(req: QuizRequest, exclude: list[int] | None):
 
 
 @router.post("/quiz")
-async def start_quiz(req: QuizRequest):
+async def start_quiz(req: QuizRequest, user: dict = Depends(require_auth)):
     """依條件隨機出題，支援單選、複選、情境題"""
-    seen = _get_seen(req.session_id)
+    user_id = user.get("sub", "")
+
+    # Free tier daily limit check
+    if not is_within_daily_limit(user_id):
+        raise HTTPException(status_code=403, detail="Daily question limit reached. Upgrade to Pro for unlimited access.")
+
+    session_id = req.session_id or str(uuid.uuid4())
+
+    seen = get_seen_ids(user_id, session_id)
     exclude = list(seen) if seen else None
 
     questions = _fetch_questions_by_types(req, exclude)
 
-    _mark_seen(req.session_id, [q["id"] for q in questions])
+    new_ids = [q["id"] for q in questions]
+    if new_ids:
+        mark_seen(user_id, session_id, new_ids)
+        # Track daily usage for free tier
+        if get_user_tier(user_id) == "free":
+            increment_daily_usage(user_id, count=len(new_ids))
 
     quiz_items = []
     for q in questions:
         item = {k: v for k, v in q.items() if k != "answer"}
-        # 複選題提示
         if q["type"] in ("multichoice", "scenario_multichoice"):
             item["hint"] = "本題為複選題，請選擇所有正確選項"
         quiz_items.append(item)
 
     return {
         "total": len(questions),
-        "session_id": req.session_id,
-        "seen_count": len(_get_seen(req.session_id)),
+        "session_id": session_id,
+        "seen_count": len(seen) + len(new_ids),
         "questions": quiz_items,
-        "_answer_key": {str(q["id"]): q["answer"] for q in questions},
     }
 
 
 @router.post("/quiz/check")
-async def check_answers(sheet: AnswerSheet):
+async def check_answers(sheet: AnswerSheet, user: dict = Depends(require_auth)):
     """批改答案，支援複選題，答錯附類題推薦"""
     all_ids = list(sheet.answers.keys())
     if not all_ids:
         return {"score": 0, "total": 0, "results": []}
 
-    questions = get_questions()
+    # Only fetch the questions we need
+    int_ids = [int(qid) for qid in all_ids if qid.isdigit()]
+    questions = get_questions_by_ids(int_ids)
     q_map = {str(q["id"]): q for q in questions}
+
+    user_id = user.get("sub", "")
+    seen = get_seen_ids(user_id, sheet.session_id or "") if sheet.session_id else set()
 
     results = []
     correct_count = 0
@@ -154,16 +162,13 @@ async def check_answers(sheet: AnswerSheet):
             "explanation": q.get("explanation"),
         }
 
-        # 複選題：顯示部分正確資訊
         if q["type"] in ("multichoice", "scenario_multichoice") and not is_correct:
             user_set = set(user_answer.strip().upper().replace(",", ""))
             correct_set = set(q["answer"])
             item["partial_correct"] = len(user_set & correct_set)
             item["total_correct"] = len(correct_set)
 
-        # 答錯 → 類題推薦
-        if not is_correct:
-            seen = _get_seen(sheet.session_id)
+        if not is_correct and find_similar:
             try:
                 similar = find_similar(q["content"], threshold=0.75, n_results=3)
                 similar = [
@@ -177,6 +182,38 @@ async def check_answers(sheet: AnswerSheet):
         results.append(item)
 
     total = len(results)
+
+    # Auto-save history (best-effort, never break grading)
+    try:
+        user_id = user.get("sub", "")
+        if user_id and results:
+            entries = [
+                {
+                    "user_id": user_id,
+                    "question_id": r["id"],
+                    "question_type": r["type"],
+                    "chapter": q_map.get(str(r["id"]), {}).get("chapter_group"),
+                    "content_preview": r["content"][:200] if r.get("content") else None,
+                    "is_correct": r["is_correct"],
+                    "user_answer": r["user_answer"],
+                    "correct_answer": r["correct_answer"],
+                }
+                for r in results
+            ]
+            save_history_batch(user_id, entries)
+    except Exception:
+        pass  # history save failure must not break grading
+
+    # Auto-collect wrong answers to notebook (best-effort)
+    try:
+        if user_id and results:
+            wrong_ids = [r["id"] for r in results if not r["is_correct"]]
+            if wrong_ids:
+                from database_notebook import upsert_wrong_answers
+                upsert_wrong_answers(user_id, wrong_ids, "quiz")
+    except Exception:
+        pass
+
     return {
         "score": correct_count,
         "total": total,
@@ -186,13 +223,14 @@ async def check_answers(sheet: AnswerSheet):
 
 
 @router.post("/quiz/reset")
-async def reset_session(session_id: str = Query(..., description="要重置的 session ID")):
+async def reset_quiz_session(
+    session_id: str = Query(..., description="要重置的 session ID"),
+    user: dict = Depends(require_auth),
+):
     """重置 session"""
-    removed = _sessions.pop(session_id, None)
-    return {
-        "session_id": session_id,
-        "cleared": len(removed) if removed else 0,
-    }
+    user_id = user.get("sub", "")
+    cleared = reset_session(user_id, session_id)
+    return {"session_id": session_id, "cleared": cleared}
 
 
 @router.post("/quiz/pdf")
@@ -203,6 +241,7 @@ async def quiz_pdf(
     num_tf: int = Query(5, ge=0, le=30),
     include_answers: bool = Query(False),
     include_explanations: bool = Query(False),
+    user: dict = Depends(require_auth),
 ):
     """產生 PDF 試卷"""
     choice_qs = get_questions(chapter=chapter, difficulty=difficulty,
@@ -214,6 +253,9 @@ async def quiz_pdf(
     if not questions:
         return {"error": "題庫中沒有符合條件的題目"}
 
+    if not build_exam_pdf:
+        return {"error": "PDF export not available in this deployment"}
+
     pdf_bytes = build_exam_pdf(questions, include_answers=include_answers,
                                include_explanations=include_explanations)
     return Response(
@@ -221,3 +263,65 @@ async def quiz_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": "attachment; filename=ipas_quiz.pdf"}
     )
+
+
+class WeaknessQuizRequest(BaseModel):
+    num_questions: int = Field(15, ge=5, le=50, description="Total questions")
+    num_weak_chapters: int = Field(3, ge=1, le=10, description="Weakest chapters to target")
+    difficulty: Optional[int] = Field(None, ge=1, le=3)
+    bank_id: Optional[str] = Field(None)
+    session_id: Optional[str] = Field(None)
+
+
+@router.post("/quiz/weakness")
+async def weakness_quiz(req: WeaknessQuizRequest, user: dict = Depends(require_auth)):
+    """Generate a quiz focused on user's weakest chapters."""
+    user_id = user.get("sub", "")
+    stats = get_weakness_stats(user_id)
+    if not stats:
+        raise HTTPException(400, "No quiz history found. Complete some quizzes first.")
+
+    # Sort by accuracy ascending (weakest first), take top N
+    sorted_stats = sorted(stats, key=lambda s: s.get("correct", 0) / max(s.get("total", 1), 1))
+    weak = sorted_stats[:req.num_weak_chapters]
+
+    # Distribute questions inversely proportional to accuracy
+    weights = []
+    for s in weak:
+        pct = s.get("correct", 0) / max(s.get("total", 1), 1)
+        weights.append(1.0 - pct + 0.1)  # +0.1 so even 100% chapters get some
+    total_weight = sum(weights)
+
+    session_id = req.session_id or str(uuid.uuid4())
+    exclude_ids = get_seen_ids(user_id, session_id) if req.session_id else []
+
+    all_questions = []
+    for i, s in enumerate(weak):
+        chapter = s.get("chapter", "")
+        n = max(1, round(req.num_questions * weights[i] / total_weight))
+        qs = get_questions(
+            chapter=chapter, difficulty=req.difficulty,
+            q_type=None, limit=n, bank_id=req.bank_id,
+            exclude_ids=exclude_ids,
+        )
+        all_questions.extend(qs)
+
+    # Trim to requested count
+    all_questions = all_questions[:req.num_questions]
+
+    if not all_questions:
+        raise HTTPException(400, "No questions available for weak chapters.")
+
+    # Strip answers
+    safe_qs = [{k: v for k, v in q.items() if k not in ("answer", "explanation")} for q in all_questions]
+
+    # Mark seen
+    q_ids = [q["id"] for q in all_questions]
+    mark_seen(user_id, session_id, q_ids)
+
+    return {
+        "session_id": session_id,
+        "total": len(safe_qs),
+        "questions": safe_qs,
+        "weak_chapters": [s.get("chapter") for s in weak],
+    }

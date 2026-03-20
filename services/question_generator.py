@@ -266,7 +266,6 @@ def generate_from_text_files(
 def insert_question_with_dedup(
     q: dict,
     threshold: float = 0.85,
-    db_path: str = "data/questions.db",
     chroma_dir: str = "data/chroma",
 ) -> dict:
     """Insert question with semantic dedup check.
@@ -279,7 +278,7 @@ def insert_question_with_dedup(
             "similar_to": similar[0],
         }
 
-    qid = _db_insert(q, db_path=db_path)
+    qid = _db_insert(q)
     _embed_add(qid, q["content"], chroma_dir=chroma_dir)
     return {
         "inserted": True,
