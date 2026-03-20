@@ -350,19 +350,36 @@ select {
 .search-highlight { background: rgba(34,197,94,0.2); padding: 0 2px; border-radius: 2px; }
 .search-info { font-family: var(--mono); font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
 
+/* Chart containers */
+.chart-container { height: 250px; }
+.chart-container.chart-sm { height: 200px; }
+.chart-container.chart-lg { height: 300px; }
+
+/* Lock icon */
+.lock-icon {
+  position: absolute; top: 12px; right: 16px;
+  font-size: 14px; color: var(--text-muted);
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
+@media (max-width: 640px) {
+  .form-row { flex-direction: column; gap: 10px; }
+}
+
 @media (max-width: 600px) {
-  .app-wrapper { padding: 12px 12px 60px; }
-  header { padding: 24px 0 16px; }
+  .app-wrapper { padding: 12px 12px 48px; }
+  header { padding: 20px 0 12px; }
   header h1 { font-size: 20px; }
   header p { font-size: 11px; }
-  .tabs { gap: 1px; }
-  .tab { font-size: 11px; padding: 9px 4px; }
-  .form-row { flex-direction: column; gap: 10px; }
+
+  /* Tabs: horizontal scroll on mobile instead of crushing text */
+  .tabs { gap: 1px; overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
+  .tab { font-size: 11px; padding: 9px 8px; flex: 0 0 auto; white-space: nowrap; min-width: 56px; }
+
   .stats { grid-template-columns: repeat(3, 1fr); gap: 6px; }
   .stat-item { padding: 10px 6px; }
   .stat-item .num { font-size: 22px; }
@@ -371,16 +388,36 @@ select {
   .card h2 { font-size: 13px; }
   .question-card { padding: 14px; }
   .q-text { font-size: 14px; }
-  .option-btn { padding: 9px 10px; font-size: 13px; }
-  .tf-btn { padding: 10px; font-size: 13px; }
+
+  /* Touch targets: minimum 44px height for accessibility */
+  .option-btn { padding: 12px 10px; font-size: 13px; min-height: 44px; }
+  .tf-btn { padding: 12px 10px; font-size: 13px; min-height: 44px; }
+  .tf-options { gap: 6px; }
+
   .score-big { font-size: 48px; }
-  .weakness-item { gap: 8px; flex-wrap: wrap; }
-  .weakness-label { min-width: 100%; font-size: 12px; }
-  .weakness-bar-wrap { min-width: 60%; }
+
+  /* Weakness: stack vertically on mobile */
+  .weakness-item { gap: 6px; flex-wrap: wrap; }
+  .weakness-label { min-width: 100%; font-size: 12px; white-space: normal; }
+  .weakness-bar-wrap { min-width: 50%; flex: 1; }
+  .weakness-pct { min-width: auto; font-size: 12px; }
+  .weakness-count { min-width: auto; font-size: 10px; }
+
   .scenario-block { padding: 12px 14px; }
   .scenario-text { font-size: 13px; }
-  .btn { padding: 10px 16px; font-size: 13px; }
+  .btn { padding: 10px 16px; font-size: 13px; min-height: 44px; }
   .explanation { padding: 10px 12px; font-size: 12px; }
+
+  /* Charts: reduce height on mobile */
+  .chart-container { height: 180px; }
+  .chart-container.chart-sm { height: 150px; }
+  .chart-container.chart-lg { height: 200px; }
+
+  /* Exam timer: don't overlap content on mobile */
+  #exam-timer { position: sticky !important; top: 0 !important; right: auto !important; margin: 0 0 12px; border-radius: 8px; }
+
+  /* Notebook sort dropdown */
+  select { font-size: 14px; }
 }
 
 /* ========== Notebook ========== */

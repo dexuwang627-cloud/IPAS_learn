@@ -46,11 +46,13 @@
   .toast-error { background:#7f1d1d; color:#fca5a5; border:1px solid var(--danger); }
   @keyframes slideIn { from { transform:translateX(100px); opacity:0; } to { transform:translateX(0); opacity:1; } }
   @media (max-width:600px) {
-    .invite-row { flex-wrap:wrap; gap:8px; }
-    .invite-code { min-width:auto; }
+    .invite-row { flex-wrap:wrap; gap:8px; padding:12px; }
+    .invite-code { min-width:auto; font-size:13px; }
+    .invite-usage { min-width:auto; }
+    .invite-meta { font-size:11px; }
     .create-form { flex-direction:column; }
-    .pro-row { flex-wrap:wrap; gap:6px; }
-    .pro-dates { min-width:auto; }
+    .pro-row { flex-wrap:wrap; gap:6px; padding:10px 12px; }
+    .pro-dates { min-width:auto; font-size:11px; }
   }
 </style>
 </head>

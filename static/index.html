@@ -124,7 +124,7 @@
       </div>
     </div>
 
-    <div id="exam-timer" class="hidden" style="position:fixed;top:16px;right:16px;z-index:100;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px 16px;font-family:var(--mono);font-size:20px;font-weight:700;color:var(--accent);"></div>
+    <div id="exam-timer" class="hidden" style="position:fixed;top:16px;right:16px;z-index:100;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px 16px;font-family:var(--mono);font-size:18px;font-weight:700;color:var(--accent);box-shadow:0 2px 8px rgba(0,0,0,0.3);"></div>
 
     <div id="quiz-area" class="hidden">
       <div id="questions-list"></div>
@@ -195,15 +195,15 @@
         </div>
         <span class="lock-icon" style="font-size:16px;">&#128274; PRO</span>
       </div>
-      <div style="height:250px;"><canvas id="chart-accuracy"></canvas></div>
+      <div class="chart-container"><canvas id="chart-accuracy"></canvas></div>
     </div>
-    <div class="card" data-pro-only>
-      <div style="height:200px;"><canvas id="chart-volume"></canvas></div>
-      <span class="lock-icon" style="position:absolute;top:12px;right:16px;font-size:14px;">&#128274;</span>
+    <div class="card" style="position:relative;" data-pro-only>
+      <div class="chart-container chart-sm"><canvas id="chart-volume"></canvas></div>
+      <span class="lock-icon">&#128274;</span>
     </div>
-    <div class="card" data-pro-only>
-      <div style="height:300px;"><canvas id="chart-chapters"></canvas></div>
-      <span class="lock-icon" style="position:absolute;top:12px;right:16px;font-size:14px;">&#128274;</span>
+    <div class="card" style="position:relative;" data-pro-only>
+      <div class="chart-container chart-lg"><canvas id="chart-chapters"></canvas></div>
+      <span class="lock-icon">&#128274;</span>
     </div>
   </div>
 
